@@ -13,14 +13,14 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "^5.14.0"
+    "@prisma/client": "^5.22.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
     "prisma": "^5.14.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0",
-    "bcryptjs": "^2.4.3",
-    "@types/bcryptjs": "^2.4.6"
+    "typescript": "^5.4.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
