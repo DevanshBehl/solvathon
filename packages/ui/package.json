@@ -1,0 +1,23 @@
+{
+  "name": "@hostel-monitor/ui",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "framer-motion": "^11.0.0",
+    "clsx": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.4.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}

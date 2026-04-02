@@ -1,0 +1,108 @@
+// ============================================
+// Prisma Schema — Hostel Monitoring System
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ───────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  WARDEN
+  SECURITY
+}
+
+enum AlertType {
+  FIGHT
+  LIQUOR
+  SMOKING
+  ANIMAL_MONKEY
+  ANIMAL_DOG
+  UNAUTHORIZED_PERSON
+  WEAPON
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ── Models ──────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // bcrypt hashed
+  role      Role     @default(WARDEN)
+  createdAt DateTime @default(now())
+
+  @@map("users")
+}
+
+model Hostel {
+  id     String  @id // "A", "C", "D1", "D2"
+  name   String
+  floors Int
+
+  floorList Floor[]
+
+  @@map("hostels")
+}
+
+model Floor {
+  id       String @id @default(cuid())
+  hostelId String
+  number   Int    // 1-based
+
+  hostel  Hostel   @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  cameras Camera[]
+
+  @@unique([hostelId, number])
+  @@map("floors")
+}
+
+model Camera {
+  id          String  @id @default(cuid())
+  label       String  // Format: "CAM-A-01-001"
+  floorId     String
+  rtspUrl     String
+  posX        Float   // 0–100 percentage
+  posY        Float   // 0–100 percentage
+  isOnline    Boolean @default(true)
+  description String?
+
+  floor  Floor   @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@map("cameras")
+}
+
+model Alert {
+  id          String    @id @default(cuid())
+  cameraId    String
+  type        AlertType
+  severity    Severity  @default(HIGH)
+  description String
+  thumbnail   String?   // base64 JPEG from ML service
+  resolved    Boolean   @default(false)
+  resolvedBy  String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+
+  camera Camera @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+
+  @@index([cameraId])
+  @@index([createdAt])
+  @@index([resolved])
+  @@map("alerts")
+}
