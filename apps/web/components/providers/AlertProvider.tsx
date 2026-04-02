@@ -2,9 +2,9 @@
 
 import { useEffect } from 'react';
 import { Toaster, toast } from 'sonner';
-import { useSignaling } from '../hooks/useSignaling';
-import { useAlertStore } from '../stores/alertStore';
-import { useCameraStore } from '../stores/cameraStore';
+import { useSignaling } from '@/hooks/useSignaling';
+import { useAlertStore } from '@/stores/alertStore';
+import { useCameraStore } from '@/stores/cameraStore';
 import type { AlertPayload } from '@hostel-monitor/types';
 import { ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR } from '@hostel-monitor/types';
 
