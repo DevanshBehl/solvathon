@@ -15,6 +15,7 @@ const mediaCodecs: mediasoupTypes.RtpCodecCapability[] = [
     kind: 'video',
     mimeType: 'video/VP8',
     clockRate: 90000,
+    preferredPayloadType: 96,
   },
 ];
 

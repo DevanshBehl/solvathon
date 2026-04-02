@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { prisma } from '@hostel-monitor/db';
+import { db } from '@hostel-monitor/db';
 import bcrypt from 'bcryptjs';
 
 export const authOptions: NextAuthOptions = {
@@ -17,11 +17,10 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        await db.connectDB();
+        const user = await db.User.findOne({ email: credentials.email });
 
-        if (!user) {
+        if (!user || !user.password) {
           return null;
         }
 
@@ -46,16 +45,19 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        // @ts-ignore
         token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        // @ts-ignore
-        session.user.role = token.role;
-        // @ts-ignore
-        session.user.id = token.sub;
+        if (token.role) {
+          session.user.role = token.role as string;
+        }
+        if (token.sub) {
+          session.user.id = token.sub;
+        }
       }
       return session;
     },

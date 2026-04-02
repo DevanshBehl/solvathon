@@ -2,7 +2,7 @@
   "extends": "../../packages/config/typescript/node.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "../..",
     "baseUrl": ".",
     "paths": {
       "@hostel-monitor/types": ["../../packages/types/src"],

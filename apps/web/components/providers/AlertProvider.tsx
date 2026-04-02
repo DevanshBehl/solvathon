@@ -19,10 +19,10 @@ export default function AlertProvider({ children }: { children: React.ReactNode 
     // Handle Alerts
     const unsubscribeAlert = subscribe('ALERT', (payload: AlertPayload) => {
       addAlert(payload);
-      
+
       const emoji = ALERT_TYPE_EMOJI[payload.alertType];
       const label = ALERT_TYPE_LABEL[payload.alertType];
-      
+
       toast(`${emoji} ${label}`, {
         description: `${payload.hostelId} - Floor ${payload.floorNumber} | Camera ${payload.cameraLabel}`,
         action: {

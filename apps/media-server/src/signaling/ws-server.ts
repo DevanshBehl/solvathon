@@ -13,7 +13,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 import type { WSMessage, WSMessageType, AlertPayload } from '@hostel-monitor/types';
-import { prisma } from '@hostel-monitor/db';
+import { db } from '@hostel-monitor/db';
 import { getDefaultRouter } from '../mediasoup/workers';
 import {
   createRecvTransport,
@@ -108,10 +108,8 @@ async function handleJoinFloor(client: ClientState, msg: WSMessage): Promise<voi
   console.info(`[ws] Client ${client.clientId} joined ${key}`);
 
   // Look up cameras on this floor
-  const floor = await prisma.floor.findUnique({
-    where: { hostelId_number: { hostelId, number: floorNumber } },
-    include: { cameras: true },
-  });
+  await db.connectDB();
+  const floor = await db.Floor.findOne({ hostelId, number: floorNumber }).populate('cameras');
 
   if (!floor) {
     client.ws.send(createMessage('ERROR', { message: `Floor ${hostelId}:${floorNumber} not found` }, msg.id));
@@ -119,7 +117,7 @@ async function handleJoinFloor(client: ClientState, msg: WSMessage): Promise<voi
   }
 
   // For each camera, notify of active producers and start inactive ones
-  for (const camera of floor.cameras) {
+  for (const camera of floor.cameras || []) {
     const existing = producerMap.get(camera.id);
 
     if (existing) {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Device } from 'mediasoup-client';
 import { useSignaling } from './useSignaling';
-import type { Transport, Consumer } from 'mediasoup-client/lib/types';
+import type { Transport, Consumer, RtpParameters } from 'mediasoup-client/types';
 import type { ProducerAddedPayload, ConsumedPayload } from '@hostel-monitor/types';
 
 interface SFUOptions {
@@ -19,12 +19,12 @@ interface SFUResult {
 export function useSFU({ hostelId, floorNumber }: SFUOptions): SFUResult {
   const { request, sendMessage, subscribe, connected } = useSignaling();
   const [connectionStatus, setConnectionStatus] = useState<SFUResult['connectionStatus']>('disconnected');
-  
+
   // Use refs to keep track of WebRTC state without triggering re-renders
   const deviceRef = useRef<Device | null>(null);
   const transportRef = useRef<Transport | null>(null);
   const consumersRef = useRef<Map<string, Consumer>>(new Map());
-  
+
   // This state maps cameraId -> MediaStreamTrack, causing re-renders when tracks change
   const [tracks, setTracks] = useState<Map<string, MediaStreamTrack>>(new Map());
 
@@ -95,17 +95,17 @@ export function useSFU({ hostelId, floorNumber }: SFUOptions): SFUResult {
     return () => {
       console.log(`[sfu] Cleaning up resources for floor ${floorNumber}`);
       isSubscribed = false;
-      
+
       // Cleanup on unmount
       sendMessage('LEAVE_FLOOR', { hostelId, floorNumber });
-      
+
       consumersRef.current.forEach(consumer => consumer.close());
       consumersRef.current.clear();
-      
+
       if (transportRef.current && !transportRef.current.closed) {
         transportRef.current.close();
       }
-      
+
       setTracks(new Map());
       deviceRef.current = null;
       transportRef.current = null;
@@ -122,7 +122,7 @@ export function useSFU({ hostelId, floorNumber }: SFUOptions): SFUResult {
 
       const device = deviceRef.current;
       const transport = transportRef.current;
-      
+
       if (!device || !transport) {
         console.warn('[sfu] Producer added, but device/transport not ready');
         return;
@@ -130,7 +130,7 @@ export function useSFU({ hostelId, floorNumber }: SFUOptions): SFUResult {
 
       try {
         console.log(`[sfu] Consuming producer ${payload.producerId} for camera ${payload.cameraId}`);
-        
+
         const params: ConsumedPayload = await request('CONSUME', {
           producerId: payload.producerId,
           transportId: transport.id,
@@ -141,12 +141,12 @@ export function useSFU({ hostelId, floorNumber }: SFUOptions): SFUResult {
         const consumer = await transport.consume({
           id: params.consumerId,
           producerId: params.producerId,
-          kind: params.kind,
-          rtpParameters: params.rtpParameters,
+          kind: params.kind, // 'video'
+          rtpParameters: params.rtpParameters as RtpParameters,
         });
 
         consumersRef.current.set(payload.cameraId, consumer);
-        
+
         // Add track to state
         setTracks(prev => {
           const next = new Map(prev);
@@ -171,13 +171,13 @@ export function useSFU({ hostelId, floorNumber }: SFUOptions): SFUResult {
   useEffect(() => {
     const handleProducerRemoved = (payload: { cameraId: string, producerId: string }) => {
       console.log(`[sfu] Producer removed for camera ${payload.cameraId}`);
-      
+
       const consumer = consumersRef.current.get(payload.cameraId);
       if (consumer) {
         consumer.close();
         consumersRef.current.delete(payload.cameraId);
       }
-      
+
       setTracks(prev => {
         const next = new Map(prev);
         next.delete(payload.cameraId);

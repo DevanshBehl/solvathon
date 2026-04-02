@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { prisma } from '@hostel-monitor/db';
+import { db } from '@hostel-monitor/db';
 import { HOSTEL_CONFIG, ALL_HOSTEL_IDS } from '@hostel-monitor/types';
 
 export async function GET() {
@@ -11,30 +11,27 @@ export async function GET() {
   }
 
   try {
-    const hostelsData = await prisma.hostel.findMany({
-      include: {
-        floorList: {
-          include: {
-            cameras: {
-              include: {
-                alerts: {
-                  where: { resolved: false }
-                }
-              }
-            }
+    await db.connectDB();
+    const hostelsData = await db.Hostel.find()
+      .populate({
+        path: 'floorList',
+        populate: {
+          path: 'cameras',
+          populate: {
+            path: 'alerts',
+            match: { resolved: false }
           }
         }
-      }
-    });
+      }) as any[];
 
     const enrichedHostels = hostelsData.map(h => {
         let onlineCameras = 0;
         let activeAlerts = 0;
 
-        h.floorList.forEach(floor => {
-            floor.cameras.forEach(cam => {
+        (h.floorList || []).forEach((floor: any) => {
+            (floor.cameras || []).forEach((cam: any) => {
                 if (cam.isOnline) onlineCameras++;
-                activeAlerts += cam.alerts.length;
+                activeAlerts += (cam.alerts || []).length;
             });
         });
 

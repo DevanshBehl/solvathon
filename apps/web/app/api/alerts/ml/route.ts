@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
-import { prisma } from '@hostel-monitor/db';
+import { db } from '@hostel-monitor/db';
 import Redis from 'ioredis';
 import type { AlertPayload } from '@hostel-monitor/types';
 
@@ -18,23 +19,20 @@ export async function POST(request: Request) {
       const body = await request.json();
       const { cameraId, alertType, severity, description, thumbnail } = body;
 
-      const camera = await prisma.camera.findUnique({
-          where: { id: cameraId },
-          include: { floor: { include: { hostel: true } } }
-      });
+      await db.connectDB();
+      const camera: any = await db.Camera.findById(cameraId)
+          .populate({ path: 'floor', populate: { path: 'hostel' } });
 
       if (!camera) {
           return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
       }
 
-      const alert = await prisma.alert.create({
-          data: {
-              cameraId,
-              type: alertType,
-              severity: severity || 'HIGH',
-              description,
-              thumbnail
-          }
+      const alert = await db.Alert.create({
+          cameraId,
+          type: alertType,
+          severity: severity || 'HIGH',
+          description,
+          thumbnail
       });
 
       if (redis) {

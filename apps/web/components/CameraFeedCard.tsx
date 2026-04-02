@@ -45,12 +45,12 @@ export default function CameraFeedCard({ camera, track, hasAlert }: CameraFeedPr
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
             <span className="text-xs font-mono text-text-secondary uppercase flex items-center gap-2">
-                {!isOnline ? 'Offline' : (
-                   <>
-                       <div className="w-3 h-3 border-2 border-text-secondary border-t-accent-blue rounded-full animate-spin" />
-                       Connecting
-                   </>
-                )}
+              {!isOnline ? 'Offline' : (
+                <>
+                  <div className="w-3 h-3 border-2 border-text-secondary border-t-accent-blue rounded-full animate-spin" />
+                  Connecting
+                </>
+              )}
             </span>
           </div>
         )}
@@ -58,11 +58,11 @@ export default function CameraFeedCard({ camera, track, hasAlert }: CameraFeedPr
 
       <div className="p-3 border-t border-border flex justify-between items-center bg-surface shrink-0">
         <div className="flex flex-col">
-            <span className="text-sm font-mono font-bold text-white">{camera.label}</span>
-            <span className="text-xs text-text-secondary truncate max-w-[200px]">{camera.description || 'No description'}</span>
+          <span className="text-sm font-mono font-bold text-white">{camera.label}</span>
+          <span className="text-xs text-text-secondary truncate max-w-[200px]">{camera.description || 'No description'}</span>
         </div>
         <div className="flex items-center gap-2">
-           {hasAlert && <span className="w-2 h-2 rounded-full bg-alert-red animate-pulse" />}
+          {hasAlert && <span className="w-2 h-2 rounded-full bg-alert-red animate-pulse" />}
         </div>
       </div>
     </div>

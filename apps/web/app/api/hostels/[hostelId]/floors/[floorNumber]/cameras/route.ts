@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../../../auth/[...nextauth]/route';
-import { prisma } from '@hostel-monitor/db';
+import { authOptions } from '../../../../../auth/[...nextauth]/route';
+import { db } from '@hostel-monitor/db';
 
 export async function GET(
   request: Request,
@@ -20,24 +21,20 @@ export async function GET(
   }
 
   try {
-    const floor = await prisma.floor.findUnique({
-      where: { hostelId_number: { hostelId, number } },
-      include: {
-        cameras: {
-          include: {
-            alerts: {
-              where: { resolved: false }
-            }
-          }
+    await db.connectDB();
+    const floor: any = await db.Floor.findOne({ hostelId, number }).populate({
+        path: 'cameras',
+        populate: {
+            path: 'alerts',
+            match: { resolved: false }
         }
-      }
     });
 
     if (!floor) {
         return NextResponse.json({ error: 'Floor not found' }, { status: 404 });
     }
 
-    const cameras = floor.cameras.map(cam => ({
+    const cameras = floor.cameras.map((cam: any) => ({
         id: cam.id,
         label: cam.label,
         posX: cam.posX,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../../auth/[...nextauth]/route';
-import { prisma } from '@hostel-monitor/db';
+import { authOptions } from '../../../auth/[...nextauth]/route';
+import { db } from '@hostel-monitor/db';
 
 export async function PATCH(
   request: Request,
@@ -13,17 +13,19 @@ export async function PATCH(
   }
 
   try {
-     const alert = await prisma.alert.findUnique({ where: { id: params.alertId } });
+     await db.connectDB();
+     const alert = await db.Alert.findById(params.alertId);
      if (!alert) return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
 
-     const updatedAlert = await prisma.alert.update({
-         where: { id: params.alertId },
-         data: {
+     const updatedAlert = await db.Alert.findByIdAndUpdate(
+         params.alertId,
+         {
              resolved: true,
              resolvedBy: session.user?.name || session.user?.email || 'Unknown User',
              resolvedAt: new Date()
-         }
-     });
+         },
+         { new: true }
+     );
 
      return NextResponse.json(updatedAlert);
 

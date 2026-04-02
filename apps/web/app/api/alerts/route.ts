@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../auth/[...nextauth]/route';
-import { prisma, Prisma } from '@hostel-monitor/db';
+import { db } from '@hostel-monitor/db';
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -18,52 +19,65 @@ export async function GET(request: Request) {
   const severity = searchParams.get('severity');
   const resolvedStr = searchParams.get('resolved');
 
-  const where: Prisma.AlertWhereInput = {};
-
-  if (hostelId) {
-      where.camera = { floor: { hostelId } };
-  }
-  if (hostelId && floorNumber) {
-      where.camera = { floor: { hostelId, number: parseInt(floorNumber, 10) } };
-  }
-  if (alertType) {
-      where.type = alertType as any;
-  }
-  if (severity) {
-      where.severity = severity as any;
-  }
-  if (resolvedStr) {
-      where.resolved = resolvedStr === 'true';
-  }
-
   try {
+     await db.connectDB();
+     const where: any = {};
+
+     if (hostelId || floorNumber) {
+         const floorMatch: any = {};
+         if (hostelId) floorMatch.hostelId = hostelId;
+         if (floorNumber) floorMatch.number = parseInt(floorNumber, 10);
+         
+         const floors = await db.Floor.find(floorMatch).select('_id');
+         const floorIds = floors.map(f => f._id);
+         
+         const cameras = await db.Camera.find({ floorId: { $in: floorIds } }).select('_id');
+         const cameraIds = cameras.map(c => c._id);
+         
+         where.cameraId = { $in: cameraIds };
+     }
+     if (alertType) {
+         where.type = alertType;
+     }
+     if (severity) {
+         where.severity = severity;
+     }
+     if (resolvedStr) {
+         where.resolved = resolvedStr === 'true';
+     }
+
      const skip = (page - 1) * limit;
      
      const [total, alerts] = await Promise.all([
-         prisma.alert.count({ where }),
-         prisma.alert.findMany({
-             where,
-             orderBy: { createdAt: 'desc' },
-             skip,
-             take: limit,
-             include: {
-                 camera: {
-                     include: {
-                         floor: {
-                             include: { hostel: true }
-                         }
-                     }
+         db.Alert.countDocuments(where),
+         db.Alert.find(where)
+             .sort({ createdAt: -1 })
+             .skip(skip)
+             .limit(limit)
+             .populate({
+                 path: 'camera',
+                 populate: {
+                     path: 'floor',
+                     populate: { path: 'hostel' }
                  }
-             }
-         })
+             })
      ]);
 
-     const formattedAlerts = alerts.map(a => ({
-         ...a,
-         cameraLabel: a.camera.label,
-         hostelName: a.camera.floor.hostel.name,
-         hostelId: a.camera.floor.hostelId,
-         floorNumber: a.camera.floor.number
+     const formattedAlerts = alerts.map((a: any) => ({
+         id: a.id,
+         cameraId: a.cameraId,
+         type: a.type,
+         severity: a.severity,
+         description: a.description,
+         thumbnail: a.thumbnail,
+         resolved: a.resolved,
+         resolvedBy: a.resolvedBy,
+         createdAt: a.createdAt,
+         resolvedAt: a.resolvedAt,
+         cameraLabel: a.camera?.label,
+         hostelName: a.camera?.floor?.hostel?.name,
+         hostelId: a.camera?.floor?.hostelId,
+         floorNumber: a.camera?.floor?.number
      }));
 
      return NextResponse.json({

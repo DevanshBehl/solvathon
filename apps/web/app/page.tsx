@@ -47,7 +47,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Content */}
-      <motion.div 
+      <motion.div
         className="max-w-4xl w-full text-center mt-20 mb-16"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -57,7 +57,7 @@ export default function LandingPage() {
           <StatusDot status="online" size="sm" />
           <span className="font-mono text-text-secondary">SYSTEM ACTIVE_</span>
         </div>
-        
+
         <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-text-secondary">
           Global Surveillance <br />
           <span className="text-gradient">Control Matrix</span>
@@ -73,7 +73,7 @@ export default function LandingPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent-blue"></div>
         </div>
       ) : (
-        <motion.div 
+        <motion.div
           className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-5xl z-10"
           variants={staggerContainer}
           initial="initial"
@@ -81,39 +81,39 @@ export default function LandingPage() {
         >
           {hostels.map((hostel) => (
             <Link key={hostel.id} href={`/hostel/${hostel.id}`}>
-              <MotionCard 
+              <MotionCard
                 variants={fadeInUp}
                 className="p-6 cursor-pointer group hover:border-gray-600 transition-colors bg-black/60 backdrop-blur-xl relative overflow-hidden"
-                style={{ 
-                    '--hover-color': hostel.color,
+                style={{
+                  '--hover-color': hostel.color,
                 } as React.CSSProperties}
               >
-                 <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: hostel.color }} />
-                 <div className="absolute top-0 left-0 w-full h-full opacity-0 group-hover:opacity-5 transition-opacity" style={{ backgroundColor: hostel.color }} />
-                
-                 <div className="flex justify-between items-start mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold font-mono group-hover:text-white transition-colors">{hostel.name}</h2>
-                        <p className="text-text-secondary text-sm mt-1">{hostel.floors} Floors Sector</p>
-                    </div>
-                    <StatusDot 
-                        status={hostel.activeAlerts > 0 ? 'critical' : 'online'} 
-                        size="md" 
-                    />
-                 </div>
+                <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: hostel.color }} />
+                <div className="absolute top-0 left-0 w-full h-full opacity-0 group-hover:opacity-5 transition-opacity" style={{ backgroundColor: hostel.color }} />
 
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-surface rounded-lg p-3 border border-border">
-                        <p className="text-xs text-text-secondary mb-1">Live Cameras</p>
-                        <p className="text-xl font-mono font-medium">{hostel.onlineCameras}</p>
-                    </div>
-                    <div className="bg-surface rounded-lg p-3 border border-border">
-                        <p className="text-xs text-text-secondary mb-1">Active Alerts</p>
-                        <p className={`text-xl font-mono font-medium ${hostel.activeAlerts > 0 ? 'text-alert-red' : ''}`}>
-                            {hostel.activeAlerts}
-                        </p>
-                    </div>
-                 </div>
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold font-mono group-hover:text-white transition-colors">{hostel.name}</h2>
+                    <p className="text-text-secondary text-sm mt-1">{hostel.floors} Floors Sector</p>
+                  </div>
+                  <StatusDot
+                    status={hostel.activeAlerts > 0 ? 'critical' : 'online'}
+                    size="md"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-surface rounded-lg p-3 border border-border">
+                    <p className="text-xs text-text-secondary mb-1">Live Cameras</p>
+                    <p className="text-xl font-mono font-medium">{hostel.onlineCameras}</p>
+                  </div>
+                  <div className="bg-surface rounded-lg p-3 border border-border">
+                    <p className="text-xs text-text-secondary mb-1">Active Alerts</p>
+                    <p className={`text-xl font-mono font-medium ${hostel.activeAlerts > 0 ? 'text-alert-red' : ''}`}>
+                      {hostel.activeAlerts}
+                    </p>
+                  </div>
+                </div>
               </MotionCard>
             </Link>
           ))}
@@ -124,14 +124,14 @@ export default function LandingPage() {
 }
 
 function ScanIcon(props: React.SVGProps<SVGSVGElement>) {
-    return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-            <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
-            <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
-            <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
-            <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
-            <path d="M7 12h10"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-    )
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+      <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+      <path d="M7 12h10"></path>
+      <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+  )
 }

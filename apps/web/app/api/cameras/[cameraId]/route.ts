@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { prisma } from '@hostel-monitor/db';
+import { db } from '@hostel-monitor/db';
 
 export async function GET(
   request: Request,
@@ -13,21 +13,18 @@ export async function GET(
   }
 
   try {
-    const camera = await prisma.camera.findUnique({
-      where: { id: params.cameraId },
-    });
+    await db.connectDB();
+    const camera = await db.Camera.findById(params.cameraId);
 
     if (!camera) {
         return NextResponse.json({ error: 'Camera not found' }, { status: 404 });
     }
 
-    const alerts = await prisma.alert.findMany({
-        where: { cameraId: params.cameraId },
-        orderBy: { createdAt: 'desc' },
-        take: 20
-    });
+    const alerts = await db.Alert.find({ cameraId: params.cameraId })
+        .sort({ createdAt: -1 })
+        .limit(20);
 
-    return NextResponse.json({ ...camera, alerts });
+    return NextResponse.json({ ...camera.toJSON(), alerts });
 
   } catch (error) {
     console.error(`Error fetching camera:`, error);
@@ -55,10 +52,12 @@ export async function PATCH(
      if (typeof description === 'string') updateData.description = description;
      if (typeof rtspUrl === 'string') updateData.rtspUrl = rtspUrl;
 
-     const updatedCamera = await prisma.camera.update({
-         where: { id: params.cameraId },
-         data: updateData
-     });
+     await db.connectDB();
+     const updatedCamera = await db.Camera.findByIdAndUpdate(
+         params.cameraId,
+         updateData,
+         { new: true }
+     );
 
      return NextResponse.json(updatedCamera);
 
