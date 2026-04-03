@@ -4,6 +4,7 @@ import './globals.css';
 import AlertProvider from '@/components/providers/AlertProvider';
 
 import AuthProvider from '@/components/providers/AuthProvider';
+import Navbar from '@/components/Navbar';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const syne = Syne({ subsets: ['latin'], variable: '--font-syne', display: 'swap' });
@@ -22,10 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${inter.variable} ${syne.variable} ${jetBrainsMono.variable}`}>
       <body className="font-sans antialiased text-text-primary bg-background">
-        <div className="absolute inset-0 bg-background overflow-y-auto">
+        <div className="absolute inset-0 bg-background overflow-y-auto flex flex-col">
           <AuthProvider>
             <AlertProvider>
-              {children}
+              <Navbar />
+              <div className="flex-1 w-full">
+                {children}
+              </div>
             </AlertProvider>
           </AuthProvider>
         </div>

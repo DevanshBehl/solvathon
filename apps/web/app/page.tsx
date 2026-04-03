@@ -12,204 +12,226 @@ export default function LandingPage() {
     setMounted(true);
   }, []);
 
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen flex flex-col relative w-full bg-background overflow-x-hidden">
-      {/* Dynamic Background Effects */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-accent-violet/20 rounded-full blur-[120px] pointer-events-none" />
-
-      {/* Navbar */}
-      <nav className="w-full flex items-center justify-between px-8 py-5 border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-        <div className="flex items-center gap-12">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-none border-2 border-accent-violet flex items-center justify-center box-glow-violet">
-              <div className="w-2 h-2 bg-accent-cyan" />
-            </div>
-            <span className="font-display font-bold text-xl tracking-tighter text-white">HMS.SYS</span>
-          </Link>
-          
-          {/* Links */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-mono text-text-secondary">
-            <Link href="/" className="text-white">Home</Link>
-            <Link href="#" className="hover:text-white transition-colors">Documentation</Link>
-            <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Link href="/login">
-            <Button variant="primary" size="sm" className="rounded-full px-6 bg-white text-black hover:bg-gray-200">
-              Get Access
-            </Button>
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <main className="flex-1 flex flex-col items-center justify-center pt-32 pb-24 px-6 relative z-10 text-center">
-        <div className="max-w-4xl mx-auto flex flex-col items-center">
-          
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <span className="inline-block py-1 px-3 mb-6 border border-border bg-surface text-accent-cyan font-mono text-xs uppercase tracking-widest text-center">
-              System v2.0 Online
+    <div className="min-h-screen flex flex-col relative w-full bg-black overflow-x-hidden text-white font-mono selection:bg-accent-violet selection:text-white">
+      
+      {/* ── Marquee Separator ────────────────────── */}
+      <div className="w-full border-b border-white/20 bg-black overflow-hidden py-1.5 z-20 flex">
+        <div className="flex w-max animate-marquee font-mono text-[10px] text-text-secondary uppercase tracking-[0.2em] whitespace-nowrap">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <span key={i} className="px-4 flex items-center gap-6 text-white font-bold">
+              secure your active sectors with hms.sys
             </span>
-          </motion.div>
-
-          <motion.h1 
-            className="text-6xl md:text-[80px] font-display font-bold uppercase leading-[0.9] mb-8 text-white tracking-tighter"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          >
-            A Single Point of Clarity <br /> For Every Camera.
-          </motion.h1>
-
-          <motion.p 
-            className="text-text-secondary text-lg font-mono leading-relaxed max-w-2xl mb-10"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          >
-            HMS maps sector health, resolves video processing, and coordinates tactical logic across all your connected IP feeds. Everything converges into one consistent, navigable view.
-          </motion.p>
-
-          <motion.div 
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <Link href="/login">
-              <Button size="lg" className="h-14 px-8 text-base bg-white text-black hover:bg-gray-200 min-w-[200px]">
-                Initialize Protocol
-              </Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button variant="ghost" size="lg" className="h-14 px-8 text-base border border-border hover:bg-surface-elevated min-w-[200px]">
-                View Dashboard
-              </Button>
-            </Link>
-          </motion.div>
-        
-        </div>
-      </main>
-
-      {/* Infinite Marquee */}
-      <div className="marquee-container text-text-secondary font-mono text-xs uppercase tracking-widest">
-        <div className="marquee-content gap-12">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-12">
-              <span>Secure Your Active Sectors</span>
-              <div className="w-1.5 h-1.5 bg-accent-violet rounded-full" />
-              <span>Real-Time WebRTC Tunnels</span>
-              <div className="w-1.5 h-1.5 bg-accent-cyan rounded-full" />
-              <span>Zero-Latency Processing</span>
-              <div className="w-1.5 h-1.5 bg-accent-violet rounded-full" />
-            </div>
           ))}
         </div>
       </div>
 
-      {/* Feature Section Grid */}
-      <section className="w-full py-32 px-6 lg:px-12 relative z-10">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-display font-bold uppercase leading-tight tracking-tight text-white mb-6">
-              Built to Understand Your <br /> Sectors Instantly
-            </h2>
-            <p className="text-text-secondary font-mono">No configuration files. Just plug the RTSP streams and monitor.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Feature Card 1 */}
-            <div className="glass p-8 flex flex-col group hover:-translate-y-1 hover:border-accent-violet transition-all duration-300">
-              <div className="w-12 h-12 mb-6 text-accent-violet group-hover:glow-violet transition-all">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-display font-bold text-white mb-3">Absolute Topology</h3>
-              <p className="text-text-secondary font-mono text-sm leading-relaxed">
-                Automatically maps relationships between endpoints, servers, and streams so you never lose context during tactical operations.
-              </p>
-            </div>
-
-            {/* Feature Card 2 */}
-            <div className="glass p-8 flex flex-col group hover:-translate-y-1 hover:border-accent-cyan transition-all duration-300">
-              <div className="w-12 h-12 mb-6 text-accent-cyan group-hover:glow-cyan transition-all">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                  <line x1="12" y1="22.08" x2="12" y2="12" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-display font-bold text-white mb-3">Edge Computing</h3>
-              <p className="text-text-secondary font-mono text-sm leading-relaxed">
-                Deploy lightweight containers directly at the edge to process ML inferences with sub-millisecond response times.
-              </p>
-            </div>
-
-            {/* Feature Card 3 */}
-            <div className="glass p-8 flex flex-col group hover:-translate-y-1 hover:border-accent-violet transition-all duration-300">
-              <div className="w-12 h-12 mb-6 text-accent-violet group-hover:glow-violet transition-all">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-display font-bold text-white mb-3">Air-Gapped Secure</h3>
-              <p className="text-text-secondary font-mono text-sm leading-relaxed">
-                WebRTC E2EE encapsulation guarantees that any payload remains 100% hermetic—readable only to your authorized domain.
-              </p>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* How it Works - 3 Step Flow */}
-      <section className="w-full py-24 px-6 border-t border-border bg-surface/50">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-3xl font-display font-bold text-white mb-16 text-center tracking-tight">System Workflow</h2>
+      {/* ── Hero Section ─────────────────────────── */}
+      <main className="flex-1 w-full relative z-10 flex flex-col pt-20 pb-32">
+        <div className="max-w-[1400px] w-full mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           
-          <div className="flex flex-col md:flex-row items-start justify-between gap-8 relative">
-            
-            {/* Connecting line for desktop */}
-            <div className="hidden md:block absolute top-[28px] left-[10%] right-[10%] h-px bg-border z-0" />
-            
-            {[
-              { num: "01", title: "Connect Feeds", desc: "Input raw RTSP links via the secure portal." },
-              { num: "02", title: "SFU Tunneling", desc: "System transcodes and WebRTC tunnels the feeds." },
-              { num: "03", title: "Global Observe", desc: "Monitor matrix from the central UI with zero latency." },
-            ].map((step, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center text-center relative z-10 w-full md:w-auto">
-                <div className="w-14 h-14 bg-background border border-border flex items-center justify-center font-mono font-bold text-lg text-accent-cyan mb-6 rounded-none box-glow-cyan shadow-lg">
-                  {step.num}
-                </div>
-                <h4 className="text-lg font-display font-bold text-white mb-2">{step.title}</h4>
-                <p className="text-text-secondary font-mono text-sm leading-relaxed max-w-[250px]">
-                  {step.desc}
+          {/* Left: Professional Pipeline Matrix Graphic */}
+          <div className="w-full aspect-square md:aspect-video lg:aspect-square relative border border-border bg-black p-8 flex flex-col items-center justify-center overflow-hidden">
+             {/* Abstract Grid background */}
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(124,58,237,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(124,58,237,0.1)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+
+             {/* System Use-Case Data Flow Diagram */}
+             <svg viewBox="0 0 500 500" className="w-full h-full text-white/40 drop-shadow-xl relative z-10" fill="none">
+                
+                {/* Horizontal Flow Lines */}
+                <motion.path 
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 2.5, ease: "easeInOut", repeat: Infinity, repeatType: "loop", repeatDelay: 1 }}
+                  d="M100 250 L250 250 M250 250 L400 250" 
+                  stroke="#C084FC" strokeWidth="2" strokeDasharray="4 8" 
+                />
+                <motion.path 
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 2, ease: "easeInOut" }}
+                  d="M100 120 L250 250 M100 380 L250 250 M250 250 L400 120 M250 250 L400 380" 
+                  stroke="currentColor" strokeWidth="1" strokeDasharray="2 4" 
+                />
+
+                {/* Left Side: Inputs */}
+                <g className="font-mono text-[9px] uppercase font-bold tracking-widest fill-black stroke-accent-violet">
+                  {/* Camera Array */}
+                  <motion.rect initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.1 }} x="50" y="95" width="50" height="50" strokeWidth="1" />
+                  <text x="75" y="124" fill="#fff" stroke="none" textAnchor="middle">ONVIF</text>
+                  
+                  <motion.rect initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2 }} x="50" y="225" width="50" height="50" strokeWidth="1" />
+                  <text x="75" y="254" fill="#fff" stroke="none" textAnchor="middle">RTSP</text>
+
+                  <motion.rect initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3 }} x="50" y="355" width="50" height="50" strokeWidth="1" />
+                  <text x="75" y="384" fill="#fff" stroke="none" textAnchor="middle">HTTP FLV</text>
+                </g>
+
+                {/* Central Brain: HMS Core */}
+                <motion.g initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.8 }}>
+                  <rect x="210" y="210" width="80" height="80" className="fill-black stroke-white stroke-[2]" />
+                  <line x1="210" y1="230" x2="290" y2="230" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+                  <text x="250" y="260" fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle" className="font-mono tracking-widest">SFU Core</text>
+                  <circle cx="250" cy="250" r="60" stroke="#C084FC" strokeWidth="1" fill="none" opacity="0.4" className="animate-pulse" />
+                </motion.g>
+
+                {/* Right Side: Outputs / Processing */}
+                <g className="font-mono text-[9px] uppercase font-bold tracking-widest fill-black stroke-accent-cyan">
+                  <motion.rect initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.1 }} x="400" y="95" width="50" height="50" strokeWidth="1" />
+                  <text x="425" y="124" fill="#fff" stroke="none" textAnchor="middle">TensorRT</text>
+                  
+                  <motion.rect initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.2 }} x="400" y="225" width="50" height="50" strokeWidth="1" className="stroke-white" />
+                  <text x="425" y="254" fill="#fff" stroke="none" textAnchor="middle">WebRTC</text>
+
+                  <motion.rect initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1.3 }} x="400" y="355" width="50" height="50" strokeWidth="1" />
+                  <text x="425" y="384" fill="#fff" stroke="none" textAnchor="middle">DVR / S3</text>
+                </g>
+             </svg>
+             <div className="absolute top-4 left-4 border border-border bg-black px-3 py-1 text-[9px] uppercase tracking-widest text-accent-violet font-bold">
+               Ingest & Distribution Matrix
+             </div>
+          </div>
+
+          {/* Right: Copy */}
+          <div className="flex flex-col items-start text-left max-w-xl">
+            <h1 className="text-[36px] sm:text-[48px] leading-[1.1] font-mono font-bold text-white mb-8 tracking-tighter uppercase">
+              A SINGLE POINT OF CLARITY FOR EVERY <span className="text-accent-violet">CAMERA</span> IN YOUR GRID
+            </h1>
+            <p className="text-white/80 text-[14px] leading-[1.8] font-mono mb-6 border-l-2 border-accent-violet pl-4 font-bold">
+              HMS maps structure, endpoints, and live streams across all your physical infrastructure, removing manual digging and lost context.
+            </p>
+            <p className="text-white/80 text-[14px] leading-[1.8] font-mono mb-12 border-l-2 border-accent-violet pl-4 font-bold">
+              Everything converges into one consistent, navigable view. Drop the latency, increase your response times.
+            </p>
+
+            <div className="flex items-center gap-6">
+              <Link href="/login">
+                <button className="px-8 py-4 bg-white text-black font-bold uppercase tracking-widest text-[13px] hover:bg-gray-200 transition-colors border border-transparent shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                  Access Terminal
+                </button>
+              </Link>
+              <button className="px-8 py-4 bg-white text-black border border-transparent font-bold uppercase tracking-widest text-[13px] hover:bg-gray-200 transition-colors">
+                View Schematics
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </main>
+
+      {/* ── Marquee Separator ────────────────────── */}
+      <div className="w-full border-t border-b border-white/20 bg-black overflow-hidden py-1.5 z-20 flex">
+        <div className="flex w-max animate-marquee font-mono text-[10px] text-text-secondary uppercase tracking-[0.2em] whitespace-nowrap">
+          {Array.from({ length: 20 }).map((_, i) => (
+            <span key={i} className="px-4 flex items-center gap-6 text-white font-bold">
+              secure your active sectors with hms.sys
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Section Two ──────────────────────────── */}
+      <section className="w-full border-b border-white/20">
+        <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2">
+          
+          <div className="w-full border-r border-transparent lg:border-white/20 py-20 lg:py-32 lg:pr-20">
+            <h2 className="text-[32px] font-mono font-bold leading-[1.1] tracking-tighter text-white mb-10 uppercase w-3/4">
+              GO FROM ZERO CONTEXT TO FULL UNDERSTANDING IN MOMENTS
+            </h2>
+            <p className="text-text-secondary text-[14px] leading-[1.8] font-mono mb-6 max-w-lg font-bold">
+              HMS analyzes your floor plans end-to-end and exposes the structure behind it - cameras, nodes, API behavior, everything.
+            </p>
+            <p className="text-text-secondary text-[14px] leading-[1.8] font-mono mb-6 max-w-lg font-bold">
+              Instead of watching unstructured feeds screen by screen, you start with a clear matrix model and dive straight into observation.
+            </p>
+            <p className="text-text-secondary text-[14px] leading-[1.8] font-mono max-w-lg font-bold text-accent-cyan">
+              The result is faster response times, smoother perimeter tracking, and zero latency dropped frames.
+            </p>
+          </div>
+
+          <div className="w-full py-20 lg:py-32 lg:pl-20 flex justify-center lg:justify-start">
+            {/* Box representing the 'Import' UI */}
+            <div className="w-full max-w-[450px] border border-white/20 bg-black flex flex-col justify-between shadow-2xl">
+              <div className="p-8 border-b border-white/20 bg-white/[0.02]">
+                <span className="text-accent-violet font-mono text-[11px] uppercase tracking-widest font-bold block mb-4">Phase One</span>
+                <h3 className="text-2xl font-bold font-mono tracking-tighter text-white mb-4 uppercase">Sync Grid Arrays</h3>
+                <p className="text-text-secondary text-[12px] leading-[1.6] font-bold">
+                  Bring your RTSP feeds into HMS with one click. We sync schemas, sub-streams, and motion events instantly.
                 </p>
               </div>
-            ))}
+              <div className="p-8">
+                <p className="text-[12px] font-bold text-white mb-6 font-mono flex items-center gap-2">
+                  <span className="text-accent-violet">{'>'}</span> available target sectors
+                </p>
+                <div className="border border-white/20 p-1 text-[13px] bg-black">
+                  <div className="flex items-center justify-between p-3 border-b border-white/20 hover:bg-white/5 transition-colors">
+                    <span className="flex items-center gap-3 font-mono font-bold text-white"><span className="w-2 h-2 bg-text-secondary block" /> Sector Alpha</span>
+                    <button className="px-4 py-1.5 bg-white text-black font-bold uppercase tracking-widest text-[10px]">Sync</button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border-b border-white/20 hover:bg-white/5 transition-colors opacity-60">
+                    <span className="flex items-center gap-3 font-mono font-bold text-white"><span className="w-2 h-2 bg-text-secondary block" /> Sector Beta</span>
+                    <button className="px-4 py-1.5 bg-white text-black font-bold uppercase tracking-widest text-[10px]">Sync</button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 hover:bg-white/5 transition-colors opacity-60">
+                    <span className="flex items-center gap-3 font-mono font-bold text-white"><span className="w-2 h-2 bg-text-secondary block" /> Sector Gamma</span>
+                    <button className="px-4 py-1.5 bg-white text-black font-bold uppercase tracking-widest text-[10px]">Sync</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="w-full py-12 border-t border-border flex flex-col items-center justify-center bg-background relative z-10">
-        <div className="flex items-center gap-2 mb-6 opacity-30">
-           <div className="w-4 h-4 border border-white flex items-center justify-center"><div className="w-1 h-1 bg-white" /></div>
-           <span className="font-display font-bold text-white tracking-widest uppercase">HMS.SYS</span>
+      {/* ── Section Three ────────────────────────── */}
+      <section className="w-full py-32 lg:py-40 border-b border-white/20 flex flex-col items-center justify-center relative overflow-hidden bg-black text-center px-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.05)_0%,transparent_70%)] pointer-events-none" />
+
+        <div className="mb-10 inline-flex items-center gap-3 border border-white/20 bg-black px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-text-secondary z-10">
+          <span className="bg-accent-violet text-black px-2 mr-1">NEW</span> WebRTC Node Beta <span className="text-white ml-2">{'>'}</span>
         </div>
-        <div className="font-mono text-xs text-text-secondary flex flex-col items-center gap-2 uppercase tracking-widest text-center">
-          <span>© 2026 HMS.SYS GLOBAL ARCHITECTURE.</span>
-          <span>BRUTALIST OPERATIONS INTERFACE. ALL RIGHTS RESERVED.</span>
+
+        <h2 className="text-[36px] lg:text-[48px] font-mono font-bold leading-[1.1] tracking-tighter text-white max-w-4xl uppercase mb-8 z-10">
+          MAKE YOUR SECURITY EASY TO EXPLORE & ONBOARD
+        </h2>
+
+        <p className="text-text-secondary text-[14px] leading-[1.8] font-mono max-w-2xl mb-12 font-bold z-10">
+          Automatically generate pipelines for your streams so others can understand, explore, and view feeds with ease. Get sub-millisecond delays without the hassle of configuring STUN/TURN servers yourself.
+        </p>
+
+        <div className="flex items-center gap-6 z-10">
+          <Link href="/login">
+            <button className="px-8 py-4 bg-white text-black font-bold uppercase tracking-widest text-[13px] hover:bg-gray-200 transition-colors">
+              Access Beta
+            </button>
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Footer ───────────────────────────────── */}
+      <footer className="w-full border-t border-white/20 flex flex-col items-center justify-center bg-black py-16">
+        <div className="text-left font-mono w-full max-w-[1400px] px-6 grid grid-cols-2 md:grid-cols-4 gap-12 border-b border-white/20 pb-12 mb-12">
+            <div className="flex flex-col gap-4">
+                <span className="font-bold text-accent-violet text-lg tracking-tighter italic mb-2">$h<span className="text-white">ms</span></span>
+                <Link href="#" className="font-bold text-text-secondary text-[12px] uppercase tracking-widest hover:text-white transition-colors">Pricing Vectors</Link>
+                <Link href="#" className="font-bold text-text-secondary text-[12px] uppercase tracking-widest hover:text-white transition-colors">System Log</Link>
+            </div>
+            <div className="flex flex-col gap-4">
+                <span className="font-bold text-white tracking-widest mb-2 border-b border-white/20 pb-2">RESOURCES</span>
+                <Link href="#" className="font-bold text-text-secondary text-[12px] uppercase tracking-widest hover:text-white transition-colors">Documentation</Link>
+                <Link href="#" className="font-bold text-text-secondary text-[12px] uppercase tracking-widest hover:text-white transition-colors">API Reference</Link>
+            </div>
+            <div className="flex flex-col gap-4">
+                <span className="font-bold text-white tracking-widest mb-2 border-b border-white/20 pb-2">LEGAL</span>
+                <Link href="#" className="font-bold text-text-secondary text-[12px] uppercase tracking-widest hover:text-white transition-colors">Privacy Policy</Link>
+                <Link href="#" className="font-bold text-text-secondary text-[12px] uppercase tracking-widest hover:text-white transition-colors">Terms of Service</Link>
+            </div>
+        </div>
+        <div className="w-full max-w-[1400px] px-6 text-left">
+          <p className="text-text-secondary font-mono text-[10px] uppercase tracking-widest font-bold">© 2026 HMS Systems. All rights reserved. End of transmission.</p>
         </div>
       </footer>
 

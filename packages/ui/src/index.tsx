@@ -157,7 +157,7 @@ export const StatusDot: React.FC<StatusDotProps> = ({ status, size = 'md', pulse
     <span className="relative inline-flex">
       {pulse && status !== 'offline' && (
         <span
-          className={clsx('absolute inline-flex h-full w-full animate-ping rounded-full opacity-75', {
+          className={clsx('absolute inline-flex h-full w-full animate-ping rounded-none opacity-75', {
             'bg-online-green': status === 'online',
             'bg-warning-amber': status === 'warning',
             'bg-alert-red': status === 'critical',
@@ -165,7 +165,7 @@ export const StatusDot: React.FC<StatusDotProps> = ({ status, size = 'md', pulse
         />
       )}
       <span
-        className={clsx('relative inline-flex rounded-full', {
+        className={clsx('relative inline-flex rounded-none', {
           'h-2 w-2': size === 'sm',
           'h-3 w-3': size === 'md',
           'h-4 w-4': size === 'lg',
@@ -186,7 +186,7 @@ interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
 export const Skeleton: React.FC<SkeletonProps> = ({ className, ...props }) => {
   return (
     <div
-      className={clsx('animate-pulse rounded-lg bg-surface-elevated', className)}
+      className={clsx('animate-pulse rounded-none bg-surface-elevated', className)}
       {...props}
     />
   );

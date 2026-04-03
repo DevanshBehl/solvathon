@@ -47,7 +47,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
-        display: ["var(--font-syne)", "sans-serif"],
+        display: ["var(--font-mono)", "monospace"],
       },
       animation: {
         "marquee": "marquee 25s linear infinite",

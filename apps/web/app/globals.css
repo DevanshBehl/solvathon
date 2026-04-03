@@ -5,19 +5,19 @@
 /* ── Base Styles ─────────────────────────── */
 
 :root {
-  --background: #08090E;
-  --surface: rgba(255, 255, 255, 0.02);
-  --surface-elevated: rgba(255, 255, 255, 0.04);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
+  --background: #000000;
+  --surface: rgba(124, 58, 237, 0.02);
+  --surface-elevated: rgba(124, 58, 237, 0.05);
+  --border: rgba(124, 58, 237, 0.25);
+  --border-hover: rgba(124, 58, 237, 0.6);
   --text-primary: #FFFFFF;
-  --text-secondary: #A0A0A0;
-  --accent-violet: #7C3AED;
-  --accent-cyan: #00D4FF;
-  --alert-red: #ef4444;
-  --online-green: #22c55e;
-  --offline-gray: #3f3f46;
-  --warning-amber: #f59e0b;
+  --text-secondary: #8E8E8E;
+  --accent-violet: #C084FC;
+  --accent-cyan: #2DD4BF;
+  --alert-red: #F87171;
+  --online-green: #4ADE80;
+  --offline-gray: #52525B;
+  --warning-amber: #FBBF24;
 }
 
 body {
@@ -28,7 +28,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Dot Grid Background Texture ────────────── */
+/* Force brutalist corners globally */
+* {
+  border-radius: 0 !important;
+}
+
+/* ── Dithered Background Pattern ────────────── */
 body::before {
   content: "";
   position: fixed;
@@ -38,8 +43,9 @@ body::before {
   height: 100vh;
   z-index: -1;
   pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image: repeating-radial-gradient(circle at center, rgba(168, 85, 247, 0.1) 0px, transparent 1px);
+  background-size: 3px 3px;
+  background-color: #000;
 }
 
 /* ── Scrollbar Styling ───────────────────── */
