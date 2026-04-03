@@ -1,14 +1,57 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession, signOut } from 'next-auth/react';
 import { Card, Badge, StatusDot, Button } from '@hostel-monitor/ui';
 import { useAlertStore } from '@/stores/alertStore';
 import { ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR } from '@hostel-monitor/types';
+import { useWebcamProducer } from '@/hooks/useWebcamProducer';
 
 export const dynamic = 'force-dynamic';
+
+function WebcamBroadcaster() {
+  const { stream, isPublishing, error, startWebcam, stopWebcam } = useWebcamProducer();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  return (
+    <div className="border border-white/20 p-5 bg-black">
+      <span className="text-text-secondary text-[9px] uppercase tracking-[0.3em] font-bold block mb-4">Broadcast Node</span>
+      {error && <div className="text-accent-red text-[10px] mb-2">{error}</div>}
+      
+      {isPublishing ? (
+        <div className="flex flex-col gap-3">
+          <div className="relative aspect-video bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
+             <video 
+               ref={videoRef} 
+               autoPlay 
+               playsInline 
+               muted 
+               className="w-full h-full object-cover" 
+             />
+             <div className="absolute top-2 right-2 flex items-center gap-2 bg-black/80 px-2 py-1 border border-accent-red/50 text-[9px] text-accent-red font-bold tracking-widest">
+               <div className="w-1.5 h-1.5 rounded-none bg-accent-red" /> REC
+             </div>
+          </div>
+          <Button variant="danger" size="sm" onClick={stopWebcam} className="w-full">
+            Stop Broadcasting
+          </Button>
+        </div>
+      ) : (
+        <Button variant="primary" size="sm" onClick={startWebcam} className="w-full">
+          Initialize Webcam
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -195,6 +238,9 @@ export default function DashboardPage() {
                 <span className="text-[10px] text-text-secondary uppercase font-bold tracking-widest mb-1">Sectors</span>
               </div>
             </div>
+
+            {/* Webcam Broadcaster */}
+            <WebcamBroadcaster />
 
             {/* Status indicators */}
             <div className="border border-white/20 p-5 bg-black">

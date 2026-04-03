@@ -193,3 +193,85 @@ export function cleanupClientConsumers(consumerIds: string[]): Map<string, numbe
 
   return cameraDecrements;
 }
+
+// ============================================
+// Broadcaster Methods
+// ============================================
+
+/**
+ * Create a Send WebRtcTransport for a broadcaster client.
+ */
+export async function createSendTransport(
+  clientId: string,
+  workerIndex: number
+): Promise<{
+  transportId: string;
+  iceParameters: mediasoupTypes.IceParameters;
+  iceCandidates: mediasoupTypes.IceCandidate[];
+  dtlsParameters: mediasoupTypes.DtlsParameters;
+}> {
+  const router = getRouter(workerIndex);
+  const announcedIp = process.env.ANNOUNCED_IP || '127.0.0.1';
+
+  const transport = await router.createWebRtcTransport({
+    listenIps: [{ ip: '0.0.0.0', announcedIp }],
+    enableUdp: true,
+    enableTcp: true,
+    preferUdp: true,
+  });
+
+  transportMap.set(transport.id, transport);
+
+  transport.on('dtlsstatechange', (dtlsState) => {
+    if (dtlsState === 'closed') {
+      console.info(`[transport] Broadcaster ${clientId} transport closed`);
+      transport.close();
+      transportMap.delete(transport.id);
+    }
+  });
+
+  console.info(`[transport] Created send transport ${transport.id} for broadcaster ${clientId}`);
+
+  return {
+    transportId: transport.id,
+    iceParameters: transport.iceParameters,
+    iceCandidates: transport.iceCandidates,
+    dtlsParameters: transport.dtlsParameters,
+  };
+}
+
+/**
+ * Connect a broadcaster's send transport with DTLS parameters.
+ */
+export async function connectSendTransport(
+  transportId: string,
+  dtlsParameters: mediasoupTypes.DtlsParameters
+): Promise<void> {
+  const transport = transportMap.get(transportId);
+  if (!transport) {
+    throw new Error(`Transport ${transportId} not found`);
+  }
+
+  await transport.connect({ dtlsParameters });
+  console.info(`[transport] Connected send transport ${transportId}`);
+}
+
+/**
+ * Handle a producer creating media.
+ */
+export async function createProducer(
+  transportId: string,
+  kind: 'audio' | 'video',
+  rtpParameters: mediasoupTypes.RtpParameters
+): Promise<mediasoupTypes.Producer> {
+  const transport = transportMap.get(transportId);
+  if (!transport) {
+    throw new Error(`Transport ${transportId} not found`);
+  }
+
+  const producer = await transport.produce({ kind, rtpParameters });
+
+  console.info(`[transport] Created producer ${producer.id} for transport ${transportId}`);
+
+  return producer;
+}

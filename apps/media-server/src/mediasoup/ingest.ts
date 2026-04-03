@@ -15,11 +15,11 @@ interface ProducerEntry {
   producer: mediasoupTypes.Producer;
   workerId: number;
   transportId: string;
-  transport: mediasoupTypes.PlainTransport;
-  ffmpegProcess: ChildProcess | null;
+  transport: mediasoupTypes.Transport;
+  ffmpegProcess?: ChildProcess | null;
   consumerCount: number;
-  autoStopTimer: NodeJS.Timeout | null;
-  retryCount: number;
+  autoStopTimer?: NodeJS.Timeout | null;
+  retryCount?: number;
 }
 
 interface CameraInfo {
@@ -150,8 +150,9 @@ function spawnFFmpeg(camera: CameraInfo, entry: ProducerEntry, rtpPort: number):
     }
 
     // Unexpected exit — retry up to MAX_RETRIES times
-    if (code !== 0 && entry.retryCount < MAX_RETRIES) {
-      entry.retryCount++;
+    const currentRetries = entry.retryCount || 0;
+    if (code !== 0 && currentRetries < MAX_RETRIES) {
+      entry.retryCount = currentRetries + 1;
       console.info(`[ffmpeg] ${camera.label}: Retrying (${entry.retryCount}/${MAX_RETRIES}) in ${RETRY_DELAY_MS / 1000}s...`);
 
       setTimeout(() => {
@@ -159,7 +160,7 @@ function spawnFFmpeg(camera: CameraInfo, entry: ProducerEntry, rtpPort: number):
           spawnFFmpeg(camera, entry, rtpPort);
         }
       }, RETRY_DELAY_MS);
-    } else if (entry.retryCount >= MAX_RETRIES) {
+    } else if (currentRetries >= MAX_RETRIES) {
       console.error(`[ffmpeg] ${camera.label}: Max retries exceeded, marking offline`);
       cleanupProducer(camera.id);
       // Here you would update the camera's isOnline status in the DB

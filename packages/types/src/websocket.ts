@@ -10,6 +10,12 @@ export type WSMessageType =
   | 'RECV_TRANSPORT_CREATED'
   | 'CONNECT_RECV_TRANSPORT'
   | 'RECV_TRANSPORT_CONNECTED'
+  | 'CREATE_SEND_TRANSPORT'
+  | 'SEND_TRANSPORT_CREATED'
+  | 'CONNECT_SEND_TRANSPORT'
+  | 'SEND_TRANSPORT_CONNECTED'
+  | 'PRODUCE'
+  | 'PRODUCED'
   | 'CONSUME'
   | 'CONSUMED'
   | 'RESUME_CONSUMER'
@@ -65,6 +71,41 @@ export interface ConnectRecvTransportPayload {
 /** RECV_TRANSPORT_CONNECTED — server confirms transport connected */
 export interface RecvTransportConnectedPayload {
   transportId: string;
+}
+
+/** CREATE_SEND_TRANSPORT — client requests a sending transport */
+export interface CreateSendTransportPayload {}
+
+/** SEND_TRANSPORT_CREATED — server responds with transport params */
+export interface SendTransportCreatedPayload {
+  transportId: string;
+  iceParameters: Record<string, unknown>;
+  iceCandidates: Record<string, unknown>[];
+  dtlsParameters: Record<string, unknown>;
+}
+
+/** CONNECT_SEND_TRANSPORT — client sends DTLS params to connect */
+export interface ConnectSendTransportPayload {
+  transportId: string;
+  dtlsParameters: Record<string, unknown>;
+}
+
+/** SEND_TRANSPORT_CONNECTED — server confirms transport connected */
+export interface SendTransportConnectedPayload {
+  transportId: string;
+}
+
+/** PRODUCE — client requests to start producing media */
+export interface ProducePayload {
+  transportId: string;
+  kind: 'audio' | 'video';
+  rtpParameters: Record<string, unknown>;
+  cameraId?: string;
+}
+
+/** PRODUCED — server confirms production started */
+export interface ProducedPayload {
+  id: string; // The producer ID
 }
 
 /** CONSUME — client requests to consume a specific producer */

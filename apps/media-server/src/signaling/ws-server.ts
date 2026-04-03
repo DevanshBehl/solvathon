@@ -22,6 +22,10 @@ import {
   resumeConsumer,
   closeTransport,
   cleanupClientConsumers,
+  createSendTransport,
+  connectSendTransport,
+  createProducer,
+  transportMap,
 } from '../mediasoup/transport';
 import {
   producerMap,
@@ -37,6 +41,7 @@ interface ClientState {
   ws: WebSocket;
   clientId: string;
   transportId?: string;
+  sendTransportId?: string;
   workerIndex?: number;
   subscribedFloors: Set<string>; // "floor:{hostelId}:{floorNumber}"
   subscribedHostels: Set<string>;
@@ -239,6 +244,67 @@ async function handleResumeConsumer(client: ClientState, msg: WSMessage): Promis
   await resumeConsumer(consumerId);
 }
 
+async function handleCreateSendTransport(client: ClientState, msg: WSMessage): Promise<void> {
+  const workerIndex = 0;
+  client.workerIndex = workerIndex;
+
+  const params = await createSendTransport(client.clientId, workerIndex);
+  client.sendTransportId = params.transportId;
+
+  client.ws.send(createMessage('SEND_TRANSPORT_CREATED', params, msg.id));
+}
+
+async function handleConnectSendTransport(client: ClientState, msg: WSMessage): Promise<void> {
+  const { transportId, dtlsParameters } = msg.payload as {
+    transportId: string;
+    dtlsParameters: any;
+  };
+
+  await connectSendTransport(transportId, dtlsParameters);
+  client.ws.send(createMessage('SEND_TRANSPORT_CONNECTED', { transportId }, msg.id));
+}
+
+async function handleProduce(client: ClientState, msg: WSMessage): Promise<void> {
+  const { transportId, kind, rtpParameters } = msg.payload as {
+    transportId: string;
+    kind: 'audio' | 'video';
+    rtpParameters: any;
+  };
+
+  const cameraId = `laptop_${client.clientId}`;
+  const producer = await createProducer(transportId, kind, rtpParameters);
+
+  producerMap.set(cameraId, {
+    producer,
+    workerId: client.workerIndex || 0,
+    transportId,
+    transport: transportMap.get(transportId) as any,
+    consumerCount: 0,
+  });
+
+  client.ws.send(createMessage('PRODUCED', { id: producer.id }, msg.id));
+
+  // Broadcast to all subscribed floors
+  for (const floorKey of client.subscribedFloors) {
+    const parts = floorKey.split(':');
+    if (parts.length === 3) {
+      const hostelId = parts[1];
+      const floorNumber = parseInt(parts[2], 10);
+      broadcastToFloor(
+        hostelId,
+        floorNumber,
+        createMessage('PRODUCER_ADDED', {
+          producerId: producer.id,
+          cameraId,
+          cameraLabel: 'Laptop Camera',
+          hostelId,
+          floorNumber,
+        })
+      );
+    }
+  }
+}
+
 // ── Disconnect Cleanup ──────────────────────
 
 function handleDisconnect(client: ClientState): void {
@@ -247,6 +313,24 @@ function handleDisconnect(client: ClientState): void {
   // Close transport
   if (client.transportId) {
     closeTransport(client.transportId);
+  }
+
+  // Close send transport
+  if (client.sendTransportId) {
+    closeTransport(client.sendTransportId);
+
+    const cameraId = `laptop_${client.clientId}`;
+    if (producerMap.has(cameraId)) {
+      const entry = producerMap.get(cameraId);
+      if (entry) {
+        try {
+          entry.producer.close();
+        } catch (e) {
+          console.error(`[ws] Error closing producer for laptop ${cameraId}:`, e);
+        }
+      }
+      producerMap.delete(cameraId);
+    }
   }
 
   // Clean up consumers and decrement camera counts
@@ -311,6 +395,15 @@ export function createSignalingServer(port: number): WebSocketServer {
             break;
           case 'RESUME_CONSUMER':
             await handleResumeConsumer(client, msg);
+            break;
+          case 'CREATE_SEND_TRANSPORT':
+            await handleCreateSendTransport(client, msg);
+            break;
+          case 'CONNECT_SEND_TRANSPORT':
+            await handleConnectSendTransport(client, msg);
+            break;
+          case 'PRODUCE':
+            await handleProduce(client, msg);
             break;
           case 'PING':
             ws.send(createMessage('PONG', {}, msg.id));
