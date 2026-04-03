@@ -29,28 +29,71 @@ graph TD
 
 ---
 
-## 🌊 Data Flow Pipeline
+## 🔄 Real-Time PubSub & WebSockets Engine
+
+To achieve sub-second latency for anomaly alerts across the entire facility, HMS utilizes a decoupled PubSub engine powered by Redis and dedicated WebSocket clusters on the Media Server.
+
+### PubSub Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Web_Client
+        UI[Tactical UI]
+        Zustand[Zustand State]
+    end
+
+    subgraph Backend_APIs
+        NextAPI[Next.js API Routes]
+        Webhook[POST /api/alerts/ml]
+    end
+
+    subgraph Media_Signaling
+        WS[WebSocket Server :4000]
+        Subscriber[Redis Subscriber]
+    end
+
+    subgraph Database_Cache
+        Redis[(IORedis PubSub)]
+        Mongo[(MongoDB)]
+    end
+
+    ML_Engine[External ML] -->|1. Detects Anomaly| Webhook
+    Webhook -->|2. Save Alert| Mongo
+    Webhook -->|3. Publish| Redis
+    Redis -->|4. Subscribe| Subscriber
+    Subscriber -->|5. Forward to Rooms| WS
+    WS -->|6. Emit via WS| UI
+    UI -->|7. Update State| Zustand
+```
+
+### The Mechanism
+
+1. **Ingestion & Persistence**: The external Machine Learning script hits `POST /api/alerts/ml` on the Next.js API with a JSON threat payload. The API validates this via API keys, queries MongoDB for the exact Camera and Floor coordinates, saves the threat to the database, and **publishes** a stringified payload to the `alerts` channel in Redis.
+2. **Subscription & Dispatch**: The Media Server runs a standalone `ioredis` subscriber (`apps/media-server/src/redis/subscriber.ts`). The instant a message drops into the `alerts` channel, it deserializes the payload and evaluates targeting.
+3. **Targeted Room Broadcasting**: The Media Server WebSocket router evaluates the threat's origin. It executes:
+   - `broadcastToFloor()`: Sending the alert strictly to users currently monitoring that specific floor via WebSocket.
+   - `broadcastToHostel()`: Escalating the notification to Global admins managing the overarching Hostel.
+   - `broadcastToAll()`: Forwarding the raw telemetry to root-level analytics dashboards.
+4. **Client-Side Resolution**: Browsers connected via `useSignaling.ts` intercept the `ALERT` WebSocket message. React state (`Zustand`) immediately forces UI animations (Framer Motion) to map the red alert onto the 2D grid matrix asynchronously, bypassing HTTP polling entirely.
+
+---
+
+## 🌊 Media Data Flow Pipeline
 
 ```mermaid
 sequenceDiagram
     participant Cam as IP Camera / Webcam
     participant SFU as Media Server (Mediasoup)
     participant ML as ML Inference Engine
-    participant Redis as Redis Cache
     participant API as Next.js API
     participant UI as Web Client
 
-    Cam->>SFU: Push RTSP / WebRTC Media
-    SFU->>ML: Distribute Video Stream
-    ML->>ML: Analyze Frames
-    SFU->>UI: Consume Video Stream (WebRTC)
-    alt Anomaly Detected
-        ML->>API: POST /api/alerts/ml (Detection Payload)
-        API->>DB: Save Alert to MongoDB
-        API->>Redis: Publish ALERT_CREATED Event
-        Redis->>SFU: Broadast to WebSockets
-        SFU->>UI: Emit WebSocket Event (Alert)
-        UI->>UI: Show Notification / Update State
+    Cam->>SFU: Push RTSP via FFmpeg Ingest
+    SFU->>ML: Passive Frame Analysis
+    SFU->>UI: WebRTC Stream (CONSUME)
+    alt Threat Detected
+        ML->>API: Publish Threat Event
+        API-->>UI: Real-Time Sub-Second Notification
     end
 ```
 
