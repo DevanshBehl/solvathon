@@ -125,8 +125,8 @@ export default function FloorMapPage({ params }: { params: { hostelId: string, f
                      </div>
                  </div>
 
-                 <div className="floor-map-container">
-                     {/* Placeholder map image */}
+                 {/* Map Container - Replaced with a relative div per user request for future Maps API rendering */}
+                 <div className="relative w-full aspect-video bg-black rounded overflow-hidden">
                      <Image 
                         src={`/maps/hostel-${hostelId}-floor-map.png`} 
                         alt="Floor Plan" 

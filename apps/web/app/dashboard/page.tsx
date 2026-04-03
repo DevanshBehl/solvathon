@@ -45,7 +45,7 @@ export default function DashboardPage() {
       {/* Top Navbar */}
       <nav className="h-16 border-b border-border bg-surface-elevated/50 backdrop-blur flex justify-between items-center px-6 sticky top-0 z-50">
         <div className="flex items-center gap-3">
-          <span className="font-mono font-bold tracking-tight text-lg">HMS<span className="text-accent-blue">.SYS</span></span>
+          <span className="font-mono font-bold tracking-tight text-lg">HMS<span className="text-accent-purple">.SYS</span></span>
           <div className="h-4 w-px bg-border mx-2" />
           <span className="text-text-secondary text-sm font-mono uppercase tracking-widest hidden sm:inline-block">Command Center</span>
         </div>
@@ -68,7 +68,7 @@ export default function DashboardPage() {
               <span className="text-sm font-medium">{session?.user?.name || 'Operator'}</span>
               <span className="text-xs text-text-secondary font-mono bg-border/50 px-1.5 rounded">{session?.user?.role || 'Guest'}</span>
             </div>
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-accent-blue to-purple-600 flex items-center justify-center text-white font-mono font-bold text-sm">
+            <div className="h-8 w-8 rounded-none border border-accent-purple bg-accent-purple/10 flex items-center justify-center text-accent-purple font-mono font-bold text-sm">
               {(session?.user?.name || 'O').charAt(0)}
             </div>
           </div>
@@ -88,14 +88,14 @@ export default function DashboardPage() {
         {/* Left Col: Hostels */}
         <div className="lg:col-span-3 flex flex-col h-full">
           <h2 className="text-sm font-mono text-text-secondary uppercase mb-4 flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-accent-blue" />
+            <div className="w-1.5 h-1.5 rounded-none bg-accent-purple" />
             Sectors Overview
           </h2>
 
           <div className="flex flex-col gap-3 overflow-y-auto pr-2 pb-4 scrollbar-thin">
             {hostels.map(hostel => (
               <Link key={hostel.id} href={`/hostel/${hostel.id}`}>
-                <Card className="p-4 hover:border-accent-blue/50 transition-colors cursor-pointer group">
+                <Card className="p-4 hover:border-accent-purple/50 transition-colors cursor-pointer group">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-8 rounded-sm" style={{ backgroundColor: hostel.color }} />

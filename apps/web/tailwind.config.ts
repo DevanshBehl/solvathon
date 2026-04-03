@@ -12,20 +12,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0a0a0f",
+        background: "#08090E",
         surface: {
-          DEFAULT: "#111118",
-          elevated: "#1a1a24",
+          DEFAULT: "rgba(255, 255, 255, 0.02)",
+          elevated: "rgba(255, 255, 255, 0.04)",
         },
         border: {
-          DEFAULT: "#1e1e2e",
+          DEFAULT: "rgba(255, 255, 255, 0.08)",
+          hover: "rgba(255, 255, 255, 0.15)",
+          glass: "rgba(255,255,255,0.08)",
         },
         text: {
-          primary: "#e2e2f0",
-          secondary: "#8888aa",
+          primary: "#FFFFFF",
+          secondary: "#A0A0A0",
         },
         accent: {
-          blue: "#3b82f6",
+          violet: "#7C3AED", // Electric Violet
+          cyan: "#00D4FF", // Neon Cyan
+          muted: "rgba(124, 58, 237, 0.2)",
         },
         alert: {
           red: "#ef4444",
@@ -34,27 +38,28 @@ const config: Config = {
           green: "#22c55e",
         },
         offline: {
-          gray: "#6b7280",
+          gray: "#3f3f46",
         },
         warning: {
           amber: "#f59e0b",
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
+        display: ["var(--font-syne)", "sans-serif"],
       },
       animation: {
+        "marquee": "marquee 25s linear infinite",
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "ping-slow": "ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
-        scanline: "scanline 8s linear infinite",
         "fade-in": "fadeIn 0.5s ease-out",
         "slide-up": "slideUp 0.5s ease-out",
+        "text-reveal": "textReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
       },
       keyframes: {
-        scanline: {
-          "0%": { transform: "translateY(-100%)" },
-          "100%": { transform: "translateY(100%)" },
+        marquee: {
+          "0%": { transform: "translateX(0%)" },
+          "100%": { transform: "translateX(-50%)" },
         },
         fadeIn: {
           "0%": { opacity: "0" },
@@ -62,6 +67,10 @@ const config: Config = {
         },
         slideUp: {
           "0%": { opacity: "0", transform: "translateY(20px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        textReveal: {
+          "0%": { opacity: "0", transform: "translateY(40px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
       },

@@ -28,8 +28,8 @@ export default function HostelPage({ params }: { params: { hostelId: string } })
 
   if (!hostel) {
       return (
-          <div className="min-h-screen flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-accent-blue"></div>
+          <div className="min-h-screen flex items-center justify-center bg-background">
+              <div className="animate-pulse rounded-none h-8 w-8 border border-accent-purple box-glow-purple"></div>
           </div>
       );
   }
@@ -79,7 +79,7 @@ export default function HostelPage({ params }: { params: { hostelId: string } })
           {hostel.floors.map(floor => (
               <Link key={floor.id} href={`/hostel/${hostel.id}/floor/${floor.number}`}>
                   <motion.div variants={fadeInUp}>
-                      <Card className="aspect-square flex flex-col items-center justify-center relative group p-4 border-border hover:border-accent-blue/50 transition-colors cursor-pointer bg-surface/80 glass overflow-hidden">
+                      <Card className="aspect-square flex flex-col items-center justify-center relative group p-4 border-border hover:border-accent-purple/50 transition-colors cursor-pointer bg-surface overflow-hidden">
                           {/* Top Right Status */}
                           <div className="absolute top-3 right-3">
                               <StatusDot 

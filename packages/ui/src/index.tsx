@@ -19,13 +19,13 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={clsx(
-          'rounded-xl border transition-all duration-150',
+          'border transition-all duration-150',
           {
             'bg-surface border-border': variant === 'default',
-            'bg-surface-elevated border-border': variant === 'elevated',
-            'bg-surface border-alert-red/30': variant === 'alert',
+            'bg-surface-elevated border-border-hover': variant === 'elevated',
+            'bg-surface border-alert-red': variant === 'alert',
           },
-          glow && 'shadow-lg shadow-accent-blue/10',
+          glow && 'box-glow-purple',
           className
         )}
         {...props}
@@ -58,13 +58,13 @@ export const Badge: React.FC<BadgeProps> = ({
   return (
     <span
       className={clsx(
-        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex items-center gap-1 rounded-none px-2 py-0.5 text-[10px] uppercase font-mono tracking-wider font-bold border',
         {
-          'bg-border text-text-secondary': variant === 'default',
-          'bg-online-green/20 text-online-green': variant === 'success',
-          'bg-warning-amber/20 text-warning-amber': variant === 'warning',
-          'bg-alert-red/20 text-alert-red': variant === 'danger',
-          'bg-accent-blue/20 text-accent-blue': variant === 'info',
+          'bg-surface border-border text-text-secondary': variant === 'default',
+          'bg-online-green/10 border-online-green/30 text-online-green': variant === 'success',
+          'bg-warning-amber/10 border-warning-amber/30 text-warning-amber': variant === 'warning',
+          'bg-alert-red/10 border-alert-red/30 text-alert-red': variant === 'danger',
+          'bg-accent-purple/10 border-accent-purple/30 text-accent-purple': variant === 'info',
         },
         className
       )}
@@ -115,17 +115,17 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={clsx(
-          'inline-flex items-center justify-center rounded-lg font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed',
+          'inline-flex items-center justify-center font-mono uppercase tracking-widest font-bold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed rounded-none',
           {
-            'bg-accent-blue hover:bg-accent-blue/90 text-white': variant === 'primary',
-            'bg-surface-elevated hover:bg-border text-text-primary border border-border': variant === 'secondary',
-            'hover:bg-surface-elevated text-text-secondary hover:text-text-primary': variant === 'ghost',
-            'bg-alert-red hover:bg-alert-red/90 text-white': variant === 'danger',
+            'bg-white hover:bg-gray-200 text-black border-none': variant === 'primary',
+            'bg-surface hover:bg-surface-elevated text-text-primary border border-border-hover': variant === 'secondary',
+            'hover:bg-border-hover text-text-secondary hover:text-white': variant === 'ghost',
+            'bg-alert-red hover:bg-alert-red/90 text-white border-none': variant === 'danger',
           },
           {
-            'px-3 py-1.5 text-sm': size === 'sm',
-            'px-4 py-2 text-sm': size === 'md',
-            'px-6 py-3 text-base': size === 'lg',
+            'px-3 py-1 text-xs': size === 'sm',
+            'px-5 py-2 text-sm': size === 'md',
+            'px-8 py-3 text-sm': size === 'lg',
           },
           className
         )}

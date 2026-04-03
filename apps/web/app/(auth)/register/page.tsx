@@ -41,55 +41,60 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background z-10 relative">
+      <Link href="/" className="absolute top-6 left-6 logo-text text-2xl flex items-center gap-1 z-20">
+         $h
+         <span className="text-text-primary text-xl translate-y-px">/</span>
+      </Link>
+
       <motion.div
         initial="initial"
         animate="animate"
         variants={fadeInUp}
         className="w-full max-w-md z-10"
       >
-        <Card variant="elevated" className="p-8 backdrop-blur-xl bg-surface-elevated/80 border-border">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-mono font-bold">SYSTEM_AUTH</h1>
-            <p className="text-text-secondary text-sm mt-2">Create a new operator account</p>
+        <Card variant="elevated" className="p-10 bg-surface border border-border-hover">
+          <div className="text-left mb-10">
+            <h1 className="text-2xl font-black uppercase tracking-tight text-white font-sans">SYSTEM_AUTH</h1>
+            <p className="text-text-secondary text-sm font-mono mt-2 uppercase">Create Operator Identity</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="p-3 rounded bg-alert-red/10 border border-alert-red/20 text-alert-red text-sm font-medium text-center">
+               <div className="p-3 bg-alert-red/10 border border-alert-red text-alert-red text-xs uppercase font-mono tracking-widest text-center">
                 {error}
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-mono text-text-secondary mb-2 uppercase">Operator Name</label>
+              <label className="block text-xs font-mono text-text-secondary mb-2 uppercase tracking-wider">Operator Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-text-primary focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-all"
+                className="w-full bg-surface border border-border-hover p-4 text-white focus:outline-none focus:border-accent-purple font-mono text-sm transition-colors"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-text-secondary mb-2 uppercase">Operator ID (Email)</label>
+              <label className="block text-xs font-mono text-text-secondary mb-2 uppercase tracking-wider">Operator ID (Email)</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-text-primary focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-all"
+                className="w-full bg-surface border border-border-hover p-4 text-white focus:outline-none focus:border-accent-purple font-mono text-sm transition-colors"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-text-secondary mb-2 uppercase">Passcode</label>
+              <label className="block text-xs font-mono text-text-secondary mb-2 uppercase tracking-wider">Passcode</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-surface border border-border rounded-lg px-4 py-3 text-text-primary font-mono focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-all"
+                className="w-full bg-surface border border-border-hover p-4 text-white focus:outline-none focus:border-accent-purple font-mono text-sm transition-colors"
                 required
               />
             </div>
@@ -97,17 +102,17 @@ export default function RegisterPage() {
             <Button
               type="submit"
               variant="primary"
-              className="w-full h-12 font-mono uppercase tracking-widest glow-blue"
+              className="w-full h-14"
               loading={loading}
             >
               Initialize Account
             </Button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-border/50 text-center text-xs text-text-secondary">
-             <Link href="/login" className="hover:text-accent-blue hover:underline transition-all">
-                ALREADY AN OPERATOR? SIGN IN
-             </Link>
+          <div className="mt-10 pt-6 border-t border-border-hover text-left flex flex-col gap-2">
+            <Link href="/login" className="text-xs font-mono uppercase text-accent-purple hover:text-white transition-colors">
+              &larr; Already an operator? Sign In
+            </Link>
           </div>
         </Card>
       </motion.div>
