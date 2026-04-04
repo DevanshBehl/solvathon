@@ -1,0 +1,1009 @@
+================================================================================
+                    HMS.SYS — FULL PROJECT CONTEXT DOCUMENT
+               Hostel Monitoring System / Security Surveillance
+================================================================================
+Generated: 2026-04-04
+Repository: https://github.com/AdityaTakuli/Hostel-Security-System
+Stack: Next.js 14 + Mediasoup WebRTC + MongoDB + Redis + Python ML Bridge
+Design: Brutalist dark-mode aesthetic with Tailwind CSS
+
+================================================================================
+ 1. PROJECT OVERVIEW
+================================================================================
+
+HMS.SYS (Hostel Monitoring System) is a production-grade, real-time surveillance
+platform designed for hostel campus security. It streams live camera feeds via
+WebRTC (using mediasoup as an SFU), runs AI/ML-based intrusion detection on those
+feeds, and delivers sub-second anomaly alerts to a web dashboard.
+
+The system is built as a Turborepo monorepo with the following workspaces:
+
+  hostel-monitor/
+  ├── apps/
+  │   ├── web/                  # Next.js 14 frontend + API routes
+  │   ├── media-server/         # Standalone Node.js mediasoup SFU + WS signaling
+  │   └── ml-bridge/            # Python relay service (intrusion-suite → HMS)
+  ├── packages/
+  │   ├── db/                   # Mongoose schemas + connection (shared)
+  │   ├── types/                # Shared TypeScript types (WS messages, enums)
+  │   ├── ui/                   # Shared React UI components (Button, Badge, etc.)
+  │   └── config/               # ESLint, Tailwind, TypeScript configs
+  ├── ml/
+  │   └── models/               # YOLO model weights directory
+  ├── docker-compose.yml        # MongoDB 6 + Redis 7 containers
+  ├── turbo.json                # Turborepo task pipeline
+  ├── start.ps1                 # Windows startup script (kill ports, clear cache, dev)
+  └── package.json              # Root monorepo config (npm workspaces)
+
+
+================================================================================
+ 2. TECHNOLOGY STACK
+================================================================================
+
+--- Frontend (apps/web) ---
+  • Next.js 14.2.35 (App Router, 'use client' components)
+  • React 18
+  • TypeScript 5
+  • Tailwind CSS 3.4.1 (dark mode, brutalist theme with 0 border-radius)
+  • Zustand 5.0.12 (state management — alertStore, detectionStore, cameraStore)
+  • Framer Motion 11.18.2 (animations)
+  • mediasoup-client 3.18.7 (WebRTC consumer/producer)
+  • next-auth 4.24.13 (JWT authentication with credentials provider)
+  • ioredis 5.10.1 (Redis PubSub for alert broadcasting)
+  • Google Fonts: Inter, Syne, JetBrains Mono
+
+--- Media Server (apps/media-server) ---
+  • Node.js (standalone daemon, NOT part of Next.js)
+  • mediasoup 3.13.0 (C++ WebRTC SFU engine)
+  • ws 8.16.0 (raw WebSocket server for signaling)
+  • ioredis 5.3.0 (subscribes to Redis 'alerts' channel)
+  • tsx 4.7.0 (dev runner with watch mode)
+  • Runs on port 4000 (WS) and 3001 (HTTP health)
+
+--- ML Bridge (apps/ml-bridge) ---
+  • Python 3 script (bridge.py)
+  • websockets library (connects to both detection-service and HMS WS)
+  • httpx (async HTTP client for posting alerts to HMS API)
+  • Relays detection data from external intrusion-suite → HMS
+
+--- Database ---
+  • MongoDB 6 (via Docker or local service)
+  • Mongoose ODM with custom String _id fields
+  • Collections: users, hostels, floors, cameras, alerts, eventlogs
+
+--- Cache / PubSub ---
+  • Redis 7 Alpine (via Docker)
+  • Channel: 'alerts' — used to broadcast ML alerts from API to media server
+
+--- Build & DevOps ---
+  • Turborepo 2.1.0 (monorepo orchestration)
+  • npm workspaces
+  • Docker Compose for MongoDB + Redis
+  • PowerShell startup script (start.ps1)
+
+
+================================================================================
+ 3. ARCHITECTURE — DATA FLOW
+================================================================================
+
+3.1 HIGH-LEVEL ARCHITECTURE
+────────────────────────────
+
+  ┌─────────────────┐     WebRTC      ┌──────────────────┐
+  │  IP Camera /    │ ──────────────→ │  Media Server    │
+  │  Laptop Webcam  │     (RTP/UDP)   │  (mediasoup SFU) │
+  └─────────────────┘                 │  Port: 4000 WS   │
+                                      │  Port: 3001 HTTP  │
+                                      └────────┬─────────┘
+                                               │
+                ┌──────────────────────────────┼──────────────────┐
+                │                              │                  │
+                ▼                              ▼                  ▼
+  ┌──────────────────┐      ┌──────────────────┐    ┌──────────────┐
+  │  Next.js Web UI  │◄────→│  Redis PubSub    │    │ ML Bridge    │
+  │  Port: 3000      │      │  (alerts channel)│    │ (Python)     │
+  │  (Dashboard)     │      └──────────────────┘    └──────┬───────┘
+  └──────────────────┘                                     │
+          │                                                │
+          ▼                                                ▼
+  ┌──────────────────┐                        ┌──────────────────────┐
+  │  MongoDB         │                        │  Intrusion Suite     │
+  │  (users, hostels,│                        │  (YOLO Detection     │
+  │   cameras, alerts│                        │   Service on :8010)  │
+  │   eventlogs)     │                        └──────────────────────┘
+  └──────────────────┘
+
+3.2 CAMERA STREAM FLOW
+────────────────────────
+
+  A. RTSP Camera Ingest:
+     1. Client joins a floor → media-server looks up cameras in MongoDB
+     2. For each camera with an RTSP URL, spawns FFmpeg:
+        ffmpeg -rtsp_transport tcp -i rtsp://... -an -vcodec libvpx -b:v 800k
+               -r 15 -f rtp -payload_type 96 -ssrc 11111111 rtp://127.0.0.1:{port}
+     3. FFmpeg feeds RTP into a mediasoup PlainTransport (comedia: true)
+     4. mediasoup creates a Producer for the camera
+     5. All subscribed clients on that floor receive PRODUCER_ADDED event
+     6. Clients create Consumers via the SFU to view the stream
+
+  B. Laptop Webcam Simulation:
+     1. User clicks "Initialize Webcam" on dashboard
+     2. Browser captures video via getUserMedia({video:true, audio:false})
+     3. Creates a mediasoup Send Transport (WebRTC)
+     4. Produces the video track → server creates a Producer
+     5. Producer is registered under laptop_{clientId} AND mapped to a
+        physical camera from the database (round-robin assignment)
+     6. PRODUCER_ADDED is broadcast to global pool + assigned floor
+
+3.3 ML DETECTION → ALERT FLOW
+────────────────────────────────
+
+  1. External intrusion-suite runs YOLO on camera frames (localhost:8010)
+  2. Sends detection boxes via WebSocket: ws://localhost:8010/ws/detections
+  3. ML Bridge (bridge.py) receives boxes:
+     a. Forwards DETECTION_OVERLAY to HMS WS → dashboard renders bounding boxes
+     b. Classifies detection (person, weapon, animal, fire, food)
+     c. Rate-limits alerts (5-sec cooldown per camera+class)
+     d. POSTs alert to /api/alerts/ml (with x-api-key header)
+     e. Sends ML_ALERT via HMS WS → real-time dashboard notification
+     f. For RED alerts, sends BUZZER_CONTROL → triggers browser audio alarm
+  4. Next.js API /api/alerts/ml:
+     a. Validates API key
+     b. Creates Alert document in MongoDB
+     c. Creates EventLog document in MongoDB
+     d. (Future: publishes to Redis 'alerts' channel)
+  5. Redis subscriber on media-server picks up alert, broadcasts to:
+     a. broadcastToFloor() — clients on that specific floor
+     b. broadcastToHostel() — hostel-level admin subscribers
+     c. broadcastToAll() — all connected dashboard clients
+  6. Browser receives ALERT WS message → Zustand alertStore updates →
+     UI shows animated incident card with emoji + severity color
+
+
+================================================================================
+ 4. DATABASE SCHEMA (MongoDB / Mongoose)
+================================================================================
+
+File: packages/db/src/schema.ts
+
+4.1 User
+─────────
+  _id: String (auto ObjectId)
+  email: String (unique)
+  name: String
+  password: String (bcrypt hashed)
+  role: Enum(SUPER_ADMIN, WARDEN, SECURITY)
+  createdAt: Date
+
+4.2 Hostel
+───────────
+  _id: String (custom: "A", "C", "D1", "D2")
+  name: String (e.g., "Alpha Block")
+  floors: Number (total floor count)
+  Virtual → floorList: Floor[]
+
+4.3 Floor
+──────────
+  _id: String (auto ObjectId)
+  hostelId: String (ref → Hostel)
+  number: Number
+  Unique index: (hostelId, number)
+  Virtual → cameras: Camera[]
+  Virtual → hostel: Hostel
+
+4.4 Camera
+───────────
+  _id: String (auto ObjectId)
+  label: String (e.g., "Cam A-101")
+  floorId: String (ref → Floor)
+  rtspUrl: String
+  posX: Number (position on floor plan, 0-100)
+  posY: Number
+  isOnline: Boolean (default: true)
+  description: String (optional)
+  restrictedZones: Array of {label, polygon: number[][], isFullFrame: boolean}
+  alarmMode: Enum(always_on, user_choice, always_off) default: user_choice
+  surveillanceActive: Boolean (default: true)
+  lastSeenAt: Date
+  Virtual → alerts: Alert[]
+  Virtual → floor: Floor
+
+4.5 Alert
+──────────
+  _id: String (auto ObjectId)
+  cameraId: String (ref → Camera)
+  type: Enum(FIGHT, LIQUOR, SMOKING, ANIMAL_MONKEY, ANIMAL_DOG,
+             UNAUTHORIZED_PERSON, WEAPON, ANIMAL_INTRUSION, LOITERING,
+             CROWD_SURGE, TRESPASSING, FOOD_INTRUSION, FIRE_DETECTED)
+  severity: Enum(LOW, MEDIUM, HIGH, CRITICAL)
+  description: String
+  thumbnail: String (base64 JPEG, optional)
+  frameSnapshot: String (base64 JPEG, optional)
+  boundingBox: {x, y, w, h} (optional)
+  zone: String (restricted zone name, optional)
+  detectedClass: String (YOLO class, optional)
+  confidence: Number (0-1, optional)
+  resolved: Boolean (default: false)
+  resolvedBy: String (optional)
+  resolvedAt: Date (optional)
+  actionTaken: String (optional)
+  read: Boolean (default: false)
+  createdAt: Date
+  Indexes: cameraId, createdAt, resolved, read, type
+  Virtual → camera: Camera
+
+4.6 EventLog
+──────────────
+  _id: String (auto ObjectId)
+  cameraId: String (ref → Camera)
+  type: String
+  riskLevel: Enum(RED, YELLOW, GREEN)
+  detectedClass: String
+  confidence: Number
+  zone: String (optional)
+  timestamp: Date
+  frameSnapshot: String (optional)
+  actionTaken: String (optional)
+  resolved: Boolean (default: false)
+  boundingBox: {x, y, w, h} (optional)
+  Indexes: cameraId, timestamp, type, riskLevel
+
+4.7 Seed Data
+──────────────
+  Default admin: admin@hostel.com / password123 (SUPER_ADMIN)
+  Hostels: A (Alpha Block, 15 floors), C (Beta Block, 16 floors)
+  Cameras: 2 per floor (Cam A-101, Cam A-102, etc.)
+  Random alerts seeded on ~30% of cameras
+
+
+================================================================================
+ 5. API ROUTES (Next.js App Router)
+================================================================================
+
+Base path: apps/web/app/api/
+
+5.1 Authentication
+───────────────────
+  POST /api/auth/[...nextauth]
+    NextAuth credentials provider
+    JWT-based sessions
+    Validates email + bcrypt password against MongoDB User collection
+
+5.2 Hostels
+─────────────
+  GET /api/hostels
+    Returns all hostels with aggregated stats:
+    { id, name, floors, onlineCameras, activeAlerts }
+
+  GET /api/hostels/[hostelId]
+    Returns single hostel with populated floor list and camera details
+
+5.3 Cameras
+─────────────
+  GET /api/cameras/[id]
+    Returns single camera with populated floor, hostel, and recent alerts
+
+  PATCH /api/cameras/[id]/alarm-mode
+    Updates camera alarm mode (always_on, user_choice, always_off)
+    Body: { alarmMode: string }
+
+5.4 Alerts
+───────────
+  GET /api/alerts
+    Query params: page, limit, hostelId, floorNumber, cameraId,
+                  type, severity, resolved
+    Returns paginated alert list
+
+  GET /api/alerts/history
+    Same as above but with full pagination metadata
+
+  POST /api/alerts/ml
+    ML webhook endpoint (secured by x-api-key header)
+    Body: { cameraId, type, class, confidence, boundingBox, zone,
+            riskLevel, timestamp, frameSnapshot }
+    Creates Alert + EventLog in MongoDB
+    Returns: { success, data: { alertId } }
+
+  PATCH /api/alerts/[id]/resolve
+    Marks alert as resolved
+    Body: { actionTaken: string }
+    Sets resolved=true, resolvedAt=now, actionTaken
+
+  PATCH /api/alerts/[id]/read
+    Marks alert as read
+
+  GET /api/alerts/heatmap
+    Query: window (1h, 6h, 24h, 7d)
+    Aggregates alert counts per camera within time window
+    Returns: { data: [{ cameraId, alertCount, redCount, yellowCount, riskLevel }] }
+
+
+================================================================================
+ 6. WEBSOCKET PROTOCOL (Media Server :4000)
+================================================================================
+
+File: apps/media-server/src/signaling/ws-server.ts
+Types: packages/types/src/websocket.ts
+
+All messages follow the envelope format:
+  { type: WSMessageType, id?: string, payload: T, timestamp: number }
+
+6.1 SFU Signaling (Client ↔ Server)
+──────────────────────────────────────
+  → GET_ROUTER_RTP_CAPABILITIES    Client requests media codec capabilities
+  ← ROUTER_RTP_CAPABILITIES        Server responds with rtpCapabilities
+
+  → CREATE_RECV_TRANSPORT           Client requests a receive transport
+  ← RECV_TRANSPORT_CREATED          Server returns {id, iceParameters, iceCandidates, dtlsParameters}
+
+  → CONNECT_RECV_TRANSPORT          Client sends {transportId, dtlsParameters}
+  ← RECV_TRANSPORT_CONNECTED        Server confirms DTLS connected
+
+  → CREATE_SEND_TRANSPORT           Broadcaster requests send transport
+  ← SEND_TRANSPORT_CREATED          Server returns transport params
+
+  → CONNECT_SEND_TRANSPORT          Broadcaster sends DTLS params
+  ← SEND_TRANSPORT_CONNECTED        Server confirms connected
+
+  → PRODUCE                         Broadcaster sends {transportId, kind, rtpParameters}
+  ← PRODUCED                        Server returns {id: producerId}
+
+  → CONSUME                         Client sends {producerId, transportId, rtpCapabilities}
+  ← CONSUMED                        Server returns {consumerId, producerId, kind, rtpParameters, cameraId}
+
+  → RESUME_CONSUMER                 Client asks to unpause consumer
+  (no response)
+
+6.2 Room Management
+────────────────────
+  → JOIN_FLOOR                      {hostelId, floorNumber} — subscribes to floor events
+  ← PRODUCER_ADDED                  {producerId, cameraId, cameraLabel, hostelId, floorNumber}
+
+  → LEAVE_FLOOR                     {hostelId, floorNumber} — unsubscribes
+
+  ← PRODUCER_REMOVED                {producerId, cameraId} — camera went offline
+
+6.3 ML / Intrusion Detection Events
+──────────────────────────────────────
+  ← ALERT                          Redis-sourced alert push to all clients
+                                   Payload: AlertPayload (alertId, cameraId, cameraLabel,
+                                   hostelId, floorNumber, alertType, severity, description,
+                                   thumbnail, posX, posY)
+
+  → BUZZER_CONTROL                 {cameraId, action: on|off, tone: high|low}
+  ← BUZZER_CONTROL                 Broadcast to all (triggers AlarmControl component)
+
+  → SURVEILLANCE_TOGGLE            {cameraId, active: boolean}
+  ← SURVEILLANCE_TOGGLE            Broadcast to all (bridge.py + dashboard)
+
+  → DETECTION_OVERLAY              {cameraId, boxes[], fps, width, height}
+  ← DETECTION_OVERLAY              Broadcast to all → DetectionOverlay renders boxes
+
+  → ZONE_INTRUSION                 {cameraId, zone, cls, confidence, riskLevel}
+  ← ZONE_INTRUSION                 Broadcast to all
+
+  → ML_ALERT                       Full detection alert from bridge
+  ← ML_ALERT                       Broadcast to all
+
+  → HEATMAP_UPDATE                 {cameraId, riskLevel, alertCount}
+  ← HEATMAP_UPDATE                 Broadcast to all
+
+  → WALKTHROUGH_STATUS             {cameraId, checkedAt}
+  ← WALKTHROUGH_STATUS             Broadcast to all
+
+6.4 Keepalive
+──────────────
+  → PING                           Client sends every 25 seconds
+  ← PONG                           Server responds
+
+
+================================================================================
+ 7. FRONTEND ARCHITECTURE
+================================================================================
+
+7.1 Pages (App Router)
+───────────────────────
+  /                                 Landing page (brutalist marketing page)
+  /login                            Auth login form
+  /register                         Auth registration form
+  /dashboard                        Main monitoring dashboard (3-column layout)
+  /dashboard/alerts                 Alert history with filters + detail drawer
+  /dashboard/heatmap                Threat density heatmap (per-camera grid)
+  /hostel/[hostelId]                Hostel detail page
+  /hostel/[hostelId]/floor/[num]    Floor-level camera view (planned)
+
+7.2 Components
+───────────────
+  Navbar.tsx
+    - Fixed top nav with $hms logo
+    - Navigation: Grid, Heatmap, Alerts
+    - Alert bell with unread badge
+    - User info + Logout button
+
+  CameraFeedCard.tsx
+    - Renders a single camera video tile
+    - Shows LIVE badge when streaming
+    - DetectionOverlay SVG layer on top
+    - Surveillance toggle button (eye icon)
+    - "Surveillance Off" overlay when ML disabled
+    - Offline/Connecting states
+
+  DetectionOverlay.tsx
+    - SVG overlay drawing bounding boxes on video
+    - Color-coded by detection class:
+      person=green, animals=yellow, weapons=red, food=blue
+    - Corner markers for brutalist aesthetic
+    - Label with class name + confidence %
+    - Zone indicator below box (red) for restricted zone intrusions
+
+  CameraModal.tsx
+    - Full-screen modal for camera detail
+    - Tabs: Info (history) / Zones (editor)
+    - ML Insight Module toggle (Active/Standby)
+    - Incident history list with resolve buttons
+
+  ZoneEditor.tsx
+    - Canvas-based polygon drawing tool
+    - Creates restricted zones on camera view
+    - Supports: Draw Polygon, Full Frame Zone
+    - Saves zones to /api/cameras/{id}/zones
+    - Lists existing zones with delete option
+
+  AlarmControl.tsx
+    - Fixed bottom-right alarm panel
+    - Web Audio API siren generator (square wave oscillator)
+    - Shows active alarms with camera IDs
+    - Mute / Unmute / Dismiss All controls
+    - Per-camera alarm mode settings (Always On, User Choice, Always Off)
+
+  AlertProvider.tsx (providers/)
+    - WebSocket subscriber for ALERT messages
+    - Pushes alerts into Zustand alertStore
+
+  AuthProvider.tsx (providers/)
+    - next-auth SessionProvider wrapper
+
+7.3 Hooks
+──────────
+  useSignaling.ts
+    - Singleton WebSocket connection to media server (port 4000)
+    - Auto-reconnect with exponential backoff (1s → 30s max)
+    - Ping/Pong keepalive every 25 seconds
+    - request() method: send + await response (UUID correlation)
+    - subscribe() method: register callbacks for specific message types
+    - Module-level initialization (connects on import in browser)
+
+  useSFU.ts
+    - Full SFU consumer lifecycle:
+      1. GET_ROUTER_RTP_CAPABILITIES → load mediasoup Device
+      2. CREATE_RECV_TRANSPORT → create WebRTC receive transport
+      3. JOIN_FLOOR → subscribe to floor's camera events
+      4. PRODUCER_ADDED handler → CONSUME + create Consumer → get track
+      5. PRODUCER_REMOVED handler → close Consumer + remove track
+    - Returns: {getVideoTrack(cameraId), activeCameraIds, connectionStatus}
+    - Cleanup: LEAVE_FLOOR, close consumers, close transport
+
+  useWebcamProducer.ts
+    - Captures local webcam video (getUserMedia)
+    - Creates Send Transport, connects DTLS, produces video track
+    - Returns: {stream, isPublishing, error, startWebcam, stopWebcam}
+
+7.4 Zustand Stores
+────────────────────
+  alertStore.ts
+    - alerts: AlertPayload[] (max 100)
+    - unreadCount: number
+    - addAlert(), markAllRead(), resolveAlert()
+    - Helper: getAlertsForFloor(), getActiveAlertCameraIds()
+
+  detectionStore.ts
+    - detectionBoxes: Map<cameraId, DetectionBox[]>  (live ML bounding boxes)
+    - alarmState: Map<cameraId, {active, tone}>       (active alarms)
+    - heatmapData: Map<cameraId, {alertCount, riskLevel}>
+    - surveillanceStatus: Map<cameraId, boolean>       (ML on/off per camera)
+    - showOverlay: boolean                             (global overlay toggle)
+    - zoneAlerts: Array of zone intrusion events (max 50)
+
+  cameraStore.ts
+    - onlineStatus: Map<cameraId, boolean>
+    - setOnline(), getIsOnline()
+
+
+================================================================================
+ 8. MEDIA SERVER INTERNALS
+================================================================================
+
+8.1 Entry Point (src/index.ts)
+───────────────────────────────
+  Startup sequence:
+    1. Initialize mediasoup workers (1 per CPU core)
+    2. Start WebSocket signaling server on port 4000
+    3. Start Redis subscriber for alert channel
+    4. Start HTTP health endpoint on port 3001 (/health)
+    5. Register SIGINT/SIGTERM for graceful shutdown
+
+8.2 Workers (src/mediasoup/workers.ts)
+────────────────────────────────────────
+  - Creates one mediasoup Worker per CPU core
+  - Each Worker has one Router with VP8 video codec
+  - Round-robin worker selection for load distribution
+  - RTP port range: 40000-49999 (from env)
+  - Worker death → process exit after 2s
+
+8.3 Transport (src/mediasoup/transport.ts)
+───────────────────────────────────────────
+  Receive Transport:
+    - createRecvTransport(clientId, workerIndex)
+    - Listens on 0.0.0.0, announced IP from env
+    - UDP preferred, TCP fallback
+    - Auto-cleanup on DTLS closed
+
+  Send Transport:
+    - createSendTransport(clientId, workerIndex)
+    - Same config as receive transport
+    - Used by webcam broadcasters
+
+  Consumer Management:
+    - consumeProducer() → creates paused Consumer
+    - resumeConsumer() → unpauses after client setup
+    - cleanupClientConsumers() → bulk close + camera decrement
+
+8.4 Ingest (src/mediasoup/ingest.ts)
+──────────────────────────────────────
+  RTSP Camera Ingest:
+    - startCameraIngest(camera) → PlainTransport + FFmpeg spawn
+    - comedia: true (auto-detect FFmpeg source port)
+    - VP8 codec, 800k bitrate, 15fps
+    - Auto-stop: 45 seconds with zero consumers
+    - Auto-retry: up to 3 times on FFmpeg exit (5s delay)
+    - Producer map tracks: producer, workerId, transportId, transport,
+      ffmpegProcess, consumerCount, autoStopTimer, retryCount
+
+8.5 WS Server (src/signaling/ws-server.ts)
+────────────────────────────────────────────
+  Client State tracked per connection:
+    - clientId (UUID)
+    - transportId (receive)
+    - sendTransportId (producer/broadcaster)
+    - workerIndex
+    - subscribedFloors: Set<"floor:{hostelId}:{floorNumber}">
+    - subscribedHostels: Set<hostelId>
+    - consumerIds: Set<consumerId>
+
+  Camera Assignment (Webcam → Physical Camera):
+    - On first PRODUCE, loads all cameras from DB
+    - Round-robin assigns laptop stream to next physical camera
+    - Registers producer under both laptop_{clientId} AND physical camera ID
+    - Broadcasts PRODUCER_ADDED to the physical camera's floor
+
+  Disconnect Cleanup:
+    - Closes receive + send transports
+    - Closes laptop producer
+    - Removes physical camera mapping
+    - Broadcasts PRODUCER_REMOVED to floor
+    - Cleans up consumers + decrements camera counts
+
+8.6 Redis Subscriber (src/redis/subscriber.ts)
+────────────────────────────────────────────────
+  - Subscribes to Redis 'alerts' channel
+  - On message: parses AlertPayload JSON
+  - Broadcasts to: floor → hostel → all clients
+  - Auto-reconnect with exponential backoff (1s → 30s)
+
+
+================================================================================
+ 9. ML BRIDGE SERVICE
+================================================================================
+
+File: apps/ml-bridge/bridge.py
+
+9.1 Configuration (from env or defaults)
+──────────────────────────────────────────
+  HMS_API_URL       = http://localhost:3000
+  HMS_WS_URL        = ws://localhost:4000
+  DETECTION_WS_URL  = ws://localhost:8010/ws/detections
+  DETECTION_API_URL = http://localhost:8010
+  ML_API_KEY        = hms-ml-key-2026
+  CAMERA_ID         = default
+
+9.2 Detection Classification
+──────────────────────────────
+  Animals:  dog, cat, bird, horse, cow, monkey, etc. → ANIMAL_INTRUSION (YELLOW)
+  Weapons:  knife, scissors, baseball bat             → WEAPON (RED)
+  Fire:     fire, smoke                               → FIRE_DETECTED (RED)
+  Food:     pizza, bottle, cup, banana, etc.          → FOOD_INTRUSION (YELLOW)
+  Person:   person                                    → UNAUTHORIZED_PERSON (YELLOW)
+
+9.3 Main Loop (relay_detections)
+──────────────────────────────────
+  1. Connect to HMS media server WebSocket
+  2. Start HMS WS listener (handles SURVEILLANCE_TOGGLE)
+  3. Start zone sync loop (every 10s: fetch zones from HMS → push to detector)
+  4. Connect to detection service WebSocket
+  5. For each detection frame:
+     a. Check surveillance is active for camera
+     b. Send DETECTION_OVERLAY to HMS WS (live bounding boxes)
+     c. For each box with confidence ≥ 0.45:
+        - Classify detection type + risk level
+        - Zone intrusions → elevate to RED + send ZONE_INTRUSION
+        - Rate-limited (5s cooldown per camera+class):
+          * POST alert to /api/alerts/ml
+          * Send ML_ALERT via WS
+          * RED alerts → send BUZZER_CONTROL (trigger alarm)
+
+
+================================================================================
+ 10. WHERE ML INFERENCE IS DISPLAYED
+================================================================================
+
+ML inference results appear in THREE places:
+
+  A. LIVE BOUNDING BOXES ON DASHBOARD VIDEO FEEDS
+     Component: DetectionOverlay.tsx
+     Location: Overlaid on every CameraFeedCard and VideoTile
+     Mechanism:
+       1. bridge.py sends DETECTION_OVERLAY via WS with boxes array
+       2. Dashboard receives via useSignaling subscription
+       3. detectionStore.setDetectionBoxes(cameraId, boxes)
+       4. DetectionOverlay renders SVG rectangles with:
+          - Color-coded by class (green=person, red=weapon, yellow=animal)
+          - Corner markers for brutalist style
+          - Label bar: "PERSON 87%"
+          - Zone indicator below box if in restricted area
+
+  B. ALERTS ON DASHBOARD
+     Component: Dashboard page (center column "Live Incident Feed")
+     Location: /dashboard main page
+     Mechanism:
+       1. Alert arrives via WS → alertStore.addAlert()
+       2. Animated cards appear with: emoji, type label, severity bar,
+          source camera, hostel location
+       3. Resolve button → PATCH /api/alerts/{id}/resolve
+       4. Examine button → links to hostel/floor view
+
+  C. THREAT HEATMAP
+     Component: HeatmapPage (/dashboard/heatmap)
+     Mechanism:
+       1. Fetches from GET /api/alerts/heatmap?window=24h
+       2. Grid of camera nodes color-coded:
+          RED = critical, YELLOW = warning, GREEN = clear
+       3. Click camera → detail panel shows alert breakdown
+       4. Time window selector: 1H, 6H, 24H, 7D
+
+  D. ALERT HISTORY
+     Component: AlertHistoryPage (/dashboard/alerts)
+     Mechanism:
+       1. Fetches from GET /api/alerts/history with filters
+       2. Filterable by: type, severity, camera ID
+       3. Click alert → detail drawer with:
+          - Frame snapshot with bounding box overlay
+          - Type, severity, camera, zone, class, confidence
+          - Resolve form with action taken text
+
+
+================================================================================
+ 11. ENVIRONMENT CONFIGURATION
+================================================================================
+
+11.1 apps/web/.env
+───────────────────
+  MONGODB_URI="mongodb://admin:password@localhost:27017/hostel_monitor?authSource=admin"
+  REDIS_URL="redis://localhost:6379"
+  NEXTAUTH_SECRET="your-super-secret-key-change-in-production"
+  NEXTAUTH_URL="http://10.226.171.34:3000"
+  NEXT_PUBLIC_MEDIA_SERVER_WS_URL="ws://localhost:4000"
+  ML_API_KEY="hms-ml-key-2026"
+  ANNOUNCED_IP="10.226.171.34"
+  RTC_MIN_PORT=40000
+  RTC_MAX_PORT=49999
+
+11.2 apps/media-server/.env
+─────────────────────────────
+  MONGODB_URI="mongodb://admin:password@localhost:27017/hostel_monitor?authSource=admin"
+  REDIS_URL="redis://localhost:6379"
+  NEXTAUTH_SECRET="your-super-secret-key-change-in-production"
+  NEXTAUTH_URL="http://10.226.171.34:3000"
+  NEXT_PUBLIC_MEDIA_SERVER_WS_URL="ws://10.226.171.34:4000"
+  ML_API_KEY="hms-ml-key-2026"
+  ANNOUNCED_IP="10.226.171.34"
+  RTC_MIN_PORT=40000
+  RTC_MAX_PORT=49999
+
+11.3 apps/ml-bridge/.env.example
+──────────────────────────────────
+  HMS_API_URL=http://localhost:3000
+  HMS_WS_URL=ws://localhost:4000
+  DETECTION_WS_URL=ws://localhost:8010/ws/detections
+  DETECTION_API_URL=http://localhost:8010
+  ML_API_KEY=hms-ml-key-2026
+  CAMERA_ID=default
+
+IMPORTANT NOTES:
+  • ANNOUNCED_IP must be set to the machine's LAN IP for cross-device WebRTC
+  • Use 127.0.0.1 or localhost ONLY for same-machine testing
+  • NEXT_PUBLIC_MEDIA_SERVER_WS_URL in web/.env uses localhost (browser connects)
+  • NEXT_PUBLIC_MEDIA_SERVER_WS_URL in media-server/.env uses LAN IP
+  • ML_API_KEY must match between web/.env and ml-bridge/.env
+
+
+================================================================================
+ 12. STARTUP SEQUENCE
+================================================================================
+
+Method 1: PowerShell Script (start.ps1)
+  1. Kills processes on ports 3000 and 4000
+  2. Deletes apps/web/.next cache
+  3. Runs: npm run dev (triggers turbo run dev for all apps)
+
+Method 2: Manual
+  1. Start MongoDB + Redis:  docker compose up -d
+  2. Install dependencies:   npm ci (from root)
+  3. Seed database:          npm run db:seed
+  4. Start all services:     npm run dev
+     → Next.js on http://localhost:3000
+     → Media server WS on ws://localhost:4000
+     → Media server HTTP on http://localhost:3001/health
+
+Method 3: ML Pipeline (additional)
+  5. Start intrusion-suite detection service (port 8010)
+  6. Start ML bridge: cd apps/ml-bridge && python bridge.py
+
+Prerequisites:
+  • Node.js ≥ 18
+  • MongoDB (local or Docker)
+  • Redis (local or Docker)
+  • FFmpeg (for RTSP camera ingest)
+  • Python 3 + build essentials (for mediasoup C++ addon compilation)
+  • Python 3 + websockets + httpx (for ML bridge)
+
+
+================================================================================
+ 13. DESIGN SYSTEM
+================================================================================
+
+13.1 Color Palette
+───────────────────
+  Background:       #000000 (pure black)
+  Surface:          rgba(124, 58, 237, 0.02)
+  Surface Elevated: rgba(124, 58, 237, 0.05)
+  Border:           rgba(124, 58, 237, 0.25)
+  Border Hover:     rgba(124, 58, 237, 0.6)
+  Text Primary:     #FFFFFF
+  Text Secondary:   #8E8E8E (#A0A0A0 in Tailwind)
+  Accent Violet:    #C084FC (CSS) / #7C3AED (Tailwind)
+  Accent Cyan:      #2DD4BF (CSS) / #00D4FF (Tailwind)
+  Alert Red:        #F87171 (CSS) / #ef4444 (Tailwind)
+  Online Green:     #4ADE80 (CSS) / #22c55e (Tailwind)
+  Warning Amber:    #FBBF24 / #f59e0b (Tailwind)
+  Offline Gray:     #52525B / #3f3f46 (Tailwind)
+
+13.2 Typography
+────────────────
+  Body:    Inter (var(--font-inter))
+  Mono:    JetBrains Mono (var(--font-mono))
+  Display: Syne (var(--font-syne))
+  All text: uppercase, tracking-widest, font-bold (brutalist convention)
+
+13.3 Design Principles
+───────────────────────
+  • BRUTALIST: Zero border-radius globally (* { border-radius: 0 !important; })
+  • Pure black backgrounds with subtle purple dithered pattern
+  • Monospace fonts everywhere for terminal/military aesthetic
+  • Status indicators: colored squares (not circles)
+  • Marquee ticker bars with scrolling text
+  • Scanline overlays on video feeds
+  • No rounded corners, no soft shadows
+  • Sharp borders, bold tracking, uppercase text
+
+
+================================================================================
+ 14. SHARED PACKAGES DETAIL
+================================================================================
+
+14.1 packages/types/
+─────────────────────
+  src/index.ts     — re-exports all types
+  src/hostel.ts    — HostelConfig map (A, C, D1, D2 with names, floors, colors)
+  src/websocket.ts — WSMessage envelope, all payload interfaces, enums,
+                     ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR maps
+
+14.2 packages/db/
+──────────────────
+  src/index.ts     — connectDB() singleton, exports db object + all models
+  src/schema.ts    — All 6 Mongoose schemas (User, Hostel, Floor, Camera, Alert, EventLog)
+  src/seed.ts      — Database seeder (admin user, 2 hostels, 15-16 floors, 2 cameras/floor)
+  .env             — MONGODB_URI
+
+14.3 packages/ui/
+──────────────────
+  src/index.tsx    — Shared React components: Button, Badge, StatusDot, Card
+                     All styled with brutalist aesthetic (no border-radius)
+
+14.4 packages/config/
+──────────────────────
+  eslint/          — Shared ESLint config
+  tailwind/        — Shared Tailwind preset
+  typescript/      — Shared tsconfig base
+
+
+================================================================================
+ 15. FILE INDEX (ALL SOURCE FILES)
+================================================================================
+
+ROOT
+  package.json                         — Monorepo config, scripts: dev, build, lint
+  turbo.json                           — Task pipeline (dev, build, lint, db:seed, etc.)
+  docker-compose.yml                   — MongoDB 6 + Redis 7 containers
+  start.ps1                            — Windows startup (kill ports, clear cache, dev)
+  .env.example                         — Root env template
+  README.md                            — Full project documentation with mermaid diagrams
+
+apps/web/
+  package.json                         — Next.js deps (mediasoup-client, zustand, etc.)
+  next.config.mjs                      — Next.js config
+  tailwind.config.ts                   — Theme colors, fonts, animations, keyframes
+  postcss.config.mjs                   — PostCSS for Tailwind
+  tsconfig.json                        — TypeScript config
+  .env                                 — Web app environment variables
+  app/
+    layout.tsx                         — Root layout (fonts, AuthProvider, Navbar, AlarmControl)
+    page.tsx                           — Landing page (brutalist hero, SVG pipeline diagram)
+    globals.css                        — CSS variables, scrollbar, effects, marquee
+    (auth)/login/                      — Login page
+    (auth)/register/                   — Register page
+    dashboard/
+      page.tsx                         — Main dashboard (3-col: sectors, live feed, diagnostics)
+      alerts/page.tsx                  — Alert history with filters, pagination, detail drawer
+      heatmap/page.tsx                 — Threat heatmap (camera grid by risk level)
+    hostel/[hostelId]/                 — Hostel detail view
+    api/
+      auth/[...nextauth]/route.ts      — NextAuth API handler
+      hostels/route.ts                 — GET hostels list
+      hostels/[hostelId]/route.ts      — GET single hostel detail
+      cameras/[id]/route.ts            — GET camera detail
+      cameras/[id]/alarm-mode/route.ts — PATCH camera alarm mode
+      alerts/route.ts                  — GET alerts (paginated, filtered)
+      alerts/ml/route.ts               — POST ML detection alert webhook
+      alerts/[id]/resolve/route.ts     — PATCH resolve alert
+      alerts/[id]/read/route.ts        — PATCH mark alert read
+      alerts/heatmap/route.ts          — GET heatmap aggregation
+      alerts/history/                  — GET alert history
+  components/
+    Navbar.tsx                         — Top navigation bar
+    CameraFeedCard.tsx                 — Camera video tile with live feed
+    CameraModal.tsx                    — Full camera detail modal
+    DetectionOverlay.tsx               — SVG bounding box overlay
+    ZoneEditor.tsx                     — Canvas-based restricted zone editor
+    AlarmControl.tsx                   — Audio alarm panel + settings
+    providers/
+      AlertProvider.tsx                — WS alert subscription provider
+      AuthProvider.tsx                 — next-auth session provider
+  hooks/
+    useSignaling.ts                    — WebSocket singleton + req/res/subscribe
+    useSFU.ts                          — mediasoup SFU consumer lifecycle
+    useWebcamProducer.ts               — Webcam broadcasting via mediasoup
+  stores/
+    alertStore.ts                      — Zustand: alerts, unread count
+    detectionStore.ts                  — Zustand: ML boxes, alarms, heatmap, surveillance
+    cameraStore.ts                     — Zustand: camera online status
+  lib/
+    auth.ts                            — getSession helper
+    ml-interface.ts                    — MLAlertRequest/Response type interfaces
+  types/                               — Local type definitions
+
+apps/media-server/
+  package.json                         — mediasoup, ws, ioredis deps
+  tsconfig.json                        — TypeScript config
+  .env                                 — Media server environment variables
+  src/
+    index.ts                           — Entry point (workers, WS, Redis, HTTP health)
+    signaling/
+      ws-server.ts                     — WebSocket server (all SFU + ML message handlers)
+    mediasoup/
+      workers.ts                       — Worker/Router creation (1 per CPU core, VP8)
+      transport.ts                     — WebRTC transport management (recv + send)
+      ingest.ts                        — FFmpeg RTSP → PlainTransport → Producer
+    redis/
+      subscriber.ts                    — Redis 'alerts' channel subscriber + broadcast
+
+apps/ml-bridge/
+  bridge.py                            — Python relay service (detection → HMS)
+  requirements.txt                     — websockets, httpx
+  .env.example                         — Bridge configuration template
+
+packages/db/
+  package.json                         — mongoose dep
+  src/
+    index.ts                           — connectDB(), db export object
+    schema.ts                          — 6 Mongoose schemas + enums
+    seed.ts                            — Database seeder
+
+packages/types/
+  package.json
+  src/
+    index.ts                           — Re-exports
+    hostel.ts                          — HostelConfig, HOSTEL_CONFIG map
+    websocket.ts                       — WSMessage types, payload interfaces, enums, maps
+
+packages/ui/
+  package.json                         — react, clsx, tailwindcss deps
+  src/
+    index.tsx                          — Button, Badge, StatusDot, Card components
+
+packages/config/
+  eslint/                              — Shared ESLint config
+  tailwind/                            — Shared Tailwind preset
+  typescript/                          — Shared tsconfig
+
+
+================================================================================
+ 16. HOSTEL CONFIGURATION
+================================================================================
+
+Defined in: packages/types/src/hostel.ts
+
+  ┌────────┬──────────────┬────────┬──────────┬───────────────────────────────┐
+  │ ID     │ Name         │ Floors │ Color    │ Description                   │
+  ├────────┼──────────────┼────────┼──────────┼───────────────────────────────┤
+  │ A      │ Hostel A     │ 15     │ #3b82f6  │ Main academic hostel          │
+  │ C      │ Hostel C     │ 16     │ #22c55e  │ Central hostel complex        │
+  │ D1     │ Hostel D1    │ 16     │ #f59e0b  │ D-block tower 1               │
+  │ D2     │ Hostel D2    │ 16     │ #a855f7  │ D-block tower 2               │
+  └────────┴──────────────┴────────┴──────────┴───────────────────────────────┘
+
+  Seed data creates 2 hostels: A (Alpha Block) and C (Beta Block).
+  D1 and D2 are configured but not seeded by default.
+
+
+================================================================================
+ 17. ALERT TYPES & CLASSIFICATION
+================================================================================
+
+  ┌──────────────────────┬───────┬──────────┬───────────────────────────────┐
+  │ Type                 │ Emoji │ Risk     │ Trigger                       │
+  ├──────────────────────┼───────┼──────────┼───────────────────────────────┤
+  │ FIGHT                │ 👊    │ HIGH     │ Physical altercation detected  │
+  │ LIQUOR               │ 🍺    │ HIGH     │ Alcohol containers detected    │
+  │ SMOKING              │ 🚬    │ MEDIUM   │ Smoking activity detected      │
+  │ ANIMAL_MONKEY        │ 🐒    │ YELLOW   │ Monkey spotted on premises     │
+  │ ANIMAL_DOG           │ 🐕    │ YELLOW   │ Dog spotted on premises        │
+  │ UNAUTHORIZED_PERSON  │ 🚷    │ YELLOW   │ Unrecognized person detected   │
+  │ WEAPON               │ 🔫    │ RED      │ Knife/scissors/bat detected    │
+  │ ANIMAL_INTRUSION     │ 🐾    │ YELLOW   │ General animal intrusion       │
+  │ LOITERING            │ 🚶    │ MEDIUM   │ Prolonged presence detected    │
+  │ CROWD_SURGE          │ 👥    │ HIGH     │ Unusual crowd density          │
+  │ TRESPASSING          │ 🚫    │ HIGH     │ Entry to restricted area       │
+  │ FOOD_INTRUSION       │ 🍕    │ YELLOW   │ Food items (attracting animals)│
+  │ FIRE_DETECTED        │ 🔥    │ RED      │ Fire or smoke detected         │
+  └──────────────────────┴───────┴──────────┴───────────────────────────────┘
+
+  Severity levels: LOW (gray), MEDIUM (amber), HIGH (red), CRITICAL (dark red)
+
+
+================================================================================
+ 18. KNOWN ISSUES / NOTES
+================================================================================
+
+  1. CameraModal.tsx has a duplicate import of ALERT_TYPE_EMOJI (line 7 & 11)
+     and uses useRef/useEffect without importing them.
+
+  2. The 404 errors on /api/hostels/A, /api/hostels/C, /api/hostels/D2
+     from the console logs indicate the hostel API route might have a
+     slug mismatch or the hostels haven't been seeded in the database.
+
+  3. ANNOUNCED_IP is critical: if set wrong, WebRTC connections will fail
+     across different machines on the network.
+
+  4. Redis is optional — if unavailable, alerts still work via API but
+     won't broadcast in real-time via PubSub.
+
+  5. The ML bridge requires a running intrusion-suite detection service
+     on port 8010 (separate project, not part of this repo).
+
+  6. Webcam streams are mapped to physical cameras via round-robin.
+     Restarting the media server resets the assignment counter.
+
+
+================================================================================
+                           END OF CONTEXT DOCUMENT
+================================================================================

@@ -6,14 +6,14 @@ import { db } from '@hostel-monitor/db';
 
 export async function GET(
   request: Request,
-  { params }: { params: { hostelId: string } }
+  { params }: { params: Promise<{ hostelId: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { hostelId } = params;
+  const { hostelId } = await params;
 
   try {
     await db.connectDB();

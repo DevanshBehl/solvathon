@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { CameraStatusPayload } from '@hostel-monitor/types';
-import { useCameraStore } from '@/stores/cameraStore';
+import { useCameraStore, getFlagColor, getFlagState } from '@/stores/cameraStore';
 import DetectionOverlay from './DetectionOverlay';
 import { useDetectionStore } from '@/stores/detectionStore';
 
@@ -17,6 +17,8 @@ export default function CameraFeedCard({ camera, track, hasAlert }: CameraFeedPr
   const isOnline = useCameraStore(state => state.onlineStatus.get(camera.id) ?? true);
   const surveillanceActive = useDetectionStore(state => state.surveillanceStatus.get(camera.id) ?? true);
   const setSurveillance = useDetectionStore(state => state.setSurveillance);
+  const flagColor = useCameraStore(state => state.flagColor.get(camera.id) ?? 'green');
+  const flagState = useCameraStore(state => state.flagState.get(camera.id) ?? 'CLEAR');
 
   const toggleSurveillance = useCallback(() => {
     const newState = !surveillanceActive;
@@ -50,8 +52,14 @@ export default function CameraFeedCard({ camera, track, hasAlert }: CameraFeedPr
     }
   }, [track]);
 
-  return (
-    <div className={`camera-feed-card flex flex-col h-full bg-surface-elevated/50 ${hasAlert ? 'has-alert' : ''}`}>
+    const borderColorClass = flagColor === 'red'
+      ? 'border-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+      : flagColor === 'yellow'
+        ? 'border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+        : 'border border-border';
+
+    return (
+    <div className={`camera-feed-card flex flex-col h-full bg-surface-elevated/50 ${borderColorClass} ${hasAlert ? 'has-alert' : ''} ${flagColor === 'red' ? 'animate-pulse' : ''}`}>
       <div className={`relative flex-1 bg-black overflow-hidden flex items-center justify-center ${!surveillanceActive ? 'opacity-40' : ''}`}>
         {track ? (
           <>
@@ -102,6 +110,12 @@ export default function CameraFeedCard({ camera, track, hasAlert }: CameraFeedPr
         </div>
         <div className="flex items-center gap-2">
           {hasAlert && <span className="w-2 h-2 rounded-full bg-alert-red animate-pulse" />}
+          {flagState !== 'CLEAR' && (
+            <span className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 ${
+              flagColor === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+              : 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+            }`}>{flagState}</span>
+          )}
           {/* Surveillance toggle chip */}
           <button
             onClick={toggleSurveillance}

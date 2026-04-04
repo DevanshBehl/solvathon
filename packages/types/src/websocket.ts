@@ -35,7 +35,10 @@ export type WSMessageType =
   | 'WALKTHROUGH_STATUS'
   | 'DETECTION_OVERLAY'
   | 'ZONE_INTRUSION'
-  | 'ML_ALERT';
+  | 'ML_ALERT'
+  | 'CAMERA_FLAG_UPDATE'
+  | 'ML_MODEL_STATUS'
+  | 'PATTERN_INSIGHT';
 
 /** Generic WebSocket message envelope */
 export interface WSMessage<T = unknown> {
@@ -333,4 +336,29 @@ export interface MLAlertPayload {
   riskLevel: 'RED' | 'YELLOW';
   timestamp: string;
   frameSnapshot?: string;
+}
+
+/** CAMERA_FLAG_UPDATE — temporal risk flag change from flag_engine.py */
+export interface CameraFlagUpdatePayload {
+  cameraId: string;
+  flagState: 'CLEAR' | 'ANIMAL' | 'FIGHT' | 'WEAPON';
+  color: 'green' | 'yellow' | 'red';
+  duration?: number;
+  triggerModel?: string;
+  confidence?: number;
+  timestamp: number;
+}
+
+/** ML_MODEL_STATUS — inference service health */
+export interface MLModelStatusPayload {
+  model: string;
+  status: 'running' | 'stopped' | 'error';
+  fps?: number;
+}
+
+/** PATTERN_INSIGHT — aggregated detection summary */
+export interface PatternInsightPayload {
+  cameraId: string;
+  detections: Array<{ class: string; count: number; timeRange: string }>;
+  timestamp: number;
 }

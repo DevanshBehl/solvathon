@@ -5,10 +5,9 @@ import { motion } from 'framer-motion';
 import CameraFeedCard from './CameraFeedCard';
 import { Button } from '@hostel-monitor/ui';
 import { ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR, AlertType } from '@hostel-monitor/types';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ZoneEditor from './ZoneEditor';
 import { useDetectionStore } from '@/stores/detectionStore';
-import { ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR, AlertType } from '@hostel-monitor/types';
 
 interface CameraModalProps {
     camera: any;
