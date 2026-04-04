@@ -4,8 +4,10 @@ ML Bridge Service — Connects intrusion-suite detection to HMS.
 Consumes detection data from the intrusion-suite detection service WebSocket,
 and relays alerts/overlays to HMS via its API and WebSocket.
 
+Auto-starts ML inference with Model 1 (Action) + Animal model on startup.
+
 Usage:
-    Activate env: E:\\CSIR\\env\\Scripts\\activate
+    Activate env: source venv/bin/activate
     python bridge.py
 """
 import asyncio
@@ -21,7 +23,7 @@ HMS_API_URL = os.getenv("HMS_API_URL", "http://localhost:3000")
 HMS_WS_URL = os.getenv("HMS_WS_URL", "ws://localhost:4000")
 DETECTION_WS_URL = os.getenv("DETECTION_WS_URL", "ws://localhost:8010/ws/detections")
 DETECTION_API_URL = os.getenv("DETECTION_API_URL", "http://localhost:8010")
-ML_API_KEY = os.getenv("ML_API_KEY", "hms-ml-key-2026")
+ML_API_KEY = os.getenv("ML_API_KEY", "ml-service-api-key-change-in-production")
 CAMERA_ID = os.getenv("CAMERA_ID", "default")
 
 # Rate limiting: don't flood HMS with alerts
@@ -30,6 +32,118 @@ last_alert_time: dict[str, float] = {}
 
 # Surveillance status per camera
 surveillance_active: dict[str, bool] = {}
+
+# Camera list from HMS
+all_cameras: list[dict] = []
+
+
+async def fetch_camera_list():
+    """Fetch all camera IDs from HMS API."""
+    global all_cameras
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{HMS_API_URL}/api/cameras",
+                headers={"x-api-key": ML_API_KEY}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                all_cameras = data.get("data", [])
+                print(f"[bridge] Fetched {len(all_cameras)} cameras from HMS")
+                for cam in all_cameras:
+                    print(f"  • {cam['label']} ({cam['id'][:8]}...) — Floor {cam['floorNumber']}")
+            else:
+                print(f"[bridge] Failed to fetch cameras: {resp.status_code}")
+    except Exception as e:
+        print(f"[bridge] Camera fetch error: {e}")
+
+
+def get_active_camera_id() -> str:
+    """Get the camera ID to tag detections with.
+    
+    Uses the first camera from the HMS database if available,
+    otherwise falls back to CAMERA_ID env var.
+    """
+    if all_cameras:
+        return all_cameras[0]["id"]
+    return CAMERA_ID
+
+
+async def auto_start_inference():
+    """Auto-start ML inference with ALL models enabled.
+    
+    1. Fetches the model list from /detector/models
+    2. Calls POST /detector/start with all models enabled + webcam source
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Check if already running
+            status_resp = await client.get(f"{DETECTION_API_URL}/detector/status")
+            if status_resp.status_code == 200:
+                status = status_resp.json()
+                if status.get("running"):
+                    print(f"[bridge] Inference already running at {status.get('fps', 0):.1f} FPS")
+                    return True
+
+            # Fetch available models
+            models_resp = await client.get(f"{DETECTION_API_URL}/detector/models")
+            if models_resp.status_code != 200:
+                print(f"[bridge] Failed to fetch models: {models_resp.status_code}")
+                return False
+
+            models = models_resp.json()
+            if not models:
+                print("[bridge] No models registered in inference service")
+                return False
+
+            # Only enable Model 1 (action) and Animal model
+            ENABLED_MODELS = {"model1.pt", "monkey_cat_dog_v1.pt"}
+            model_configs = []
+            for model in models:
+                if model["name"] not in ENABLED_MODELS:
+                    print(f"  ⊘ Skipping {model['name']} (not in active set)")
+                    continue
+
+                # Enable every class in each selected model
+                enabled_classes = {}
+                for label in model.get("labels", []):
+                    enabled_classes[label] = True
+
+                model_configs.append({
+                    "name": model["name"],
+                    "enabled": True,
+                    "conf": model.get("conf", 0.35),
+                    "iou": 0.45,
+                    "enabled_classes": enabled_classes,
+                })
+
+            print(f"[bridge] Starting inference with {len(model_configs)} models:")
+            for mc in model_configs:
+                print(f"  • {mc['name']} ({len(mc['enabled_classes'])} classes)")
+
+            # Start detection with webcam 0
+            start_resp = await client.post(
+                f"{DETECTION_API_URL}/detector/start",
+                json={
+                    "source": {"uri": "0"},
+                    "models": model_configs,
+                    "zones": [],
+                    "zones_version": "1",
+                },
+                timeout=30.0,
+            )
+
+            if start_resp.status_code == 200:
+                result = start_resp.json()
+                print(f"[bridge] ✓ Auto-started detection: {result}")
+                return True
+            else:
+                print(f"[bridge] ✗ Failed to start detection: {start_resp.status_code} {start_resp.text}")
+                return False
+
+    except Exception as e:
+        print(f"[bridge] Auto-start error: {e}")
+        return False
 
 
 async def connect_hms_ws():
@@ -86,22 +200,33 @@ def should_alert(camera_id: str, cls: str) -> bool:
     return True
 
 
+# Non-threatening action classes from Model 1 that should NOT trigger alerts
+SUPPRESSED_ACTION_CLASSES = {
+    "normal_walk", "walking", "standing", "sitting", "normal",
+    "running", "jogging", "bending", "hand_shaking", "hugging",
+    "reading", "eating", "drinking", "talking", "texting",
+    "using_phone", "waving", "pointing",
+}
+
+
 def classify_detection(cls: str) -> tuple[str, str]:
     """Map detected class to alert type and risk level."""
     animal_classes = {"dog", "cat", "bird", "horse", "cow", "elephant", "bear", "zebra", "giraffe", "monkey"}
+    fight_classes = {"fighting", "fight", "violence", "assault", "kicking", "punching", "stabbing"}
     weapon_classes = {"knife", "scissors", "baseball bat"}
     fire_classes = {"fire", "smoke"}
-    food_classes = {"pizza", "bottle", "cup", "bowl", "banana", "apple", "sandwich", "hot dog", "donut", "cake"}
 
     cls_lower = cls.lower()
-    if cls_lower in animal_classes:
+    if cls_lower in fight_classes:
+        return "FIGHT", "RED"
+    elif cls_lower in animal_classes:
         return "ANIMAL_INTRUSION", "YELLOW"
     elif cls_lower in weapon_classes:
         return "WEAPON", "RED"
     elif cls_lower in fire_classes:
         return "FIRE_DETECTED", "RED"
-    elif cls_lower in food_classes:
-        return "FOOD_INTRUSION", "YELLOW"
+    elif cls_lower in SUPPRESSED_ACTION_CLASSES:
+        return "SUPPRESSED", "NONE"  # will be filtered out
     elif cls_lower == "person":
         return "UNAUTHORIZED_PERSON", "YELLOW"
     else:
@@ -133,22 +258,19 @@ async def listen_hms_ws(hms_ws):
 
 async def sync_zones_loop():
     """Periodically fetch zones from HMS and update the detection service."""
+    camera_id = get_active_camera_id()
     while True:
         try:
-            # 1. Fetch zones from HMS DB
             async with httpx.AsyncClient(timeout=10.0) as client:
-                hms_resp = await client.get(f"{HMS_API_URL}/api/cameras/{CAMERA_ID}/zones")
+                hms_resp = await client.get(f"{HMS_API_URL}/api/cameras/{camera_id}/zones")
                 if hms_resp.status_code == 200:
                     zones_data = hms_resp.json().get("data", [])
                     
-                    # 2. Format zones for detection service
-                    # HMS zones currently might have id, name, type, points
-                    # detection-service expects format {"id": str, "name": str, "type": str, "points": [[x,y]]}
                     detection_zones = []
                     for z in zones_data:
                         pts = z.get("points", [])
-                        if not pts: continue
-                        # scale normalized points to 640x480 for the ML service since the UI uses 100x100 relative
+                        if not pts:
+                            continue
                         scaled_pts = [[int(p["x"] * 6.4), int(p["y"] * 4.8)] for p in pts]
                         detection_zones.append({
                             "id": z.get("id"),
@@ -157,32 +279,48 @@ async def sync_zones_loop():
                             "points": scaled_pts
                         })
 
-                    # 3. Send update to detection service
                     detect_resp = await client.post(
                         f"{DETECTION_API_URL}/detector/update-zones",
                         json={"zones": detection_zones}
                     )
                     if detect_resp.status_code != 200:
                         print(f"[bridge] Warning: Failed to sync zones to detectsvc: {detect_resp.text}")
-        except Exception as e:
-            pass # suppress zone sync error logs to avoid spam
+        except Exception:
+            pass
             
-        await asyncio.sleep(10.0)  # Every 10 seconds
+        await asyncio.sleep(10.0)
 
 
 async def relay_detections():
     """Main loop: connect to detection service WS and relay to HMS."""
     hms_ws = await connect_hms_ws()
 
+    # Fetch cameras from HMS
+    await fetch_camera_list()
+    camera_id = get_active_camera_id()
+    print(f"[bridge] Active camera ID for detections: {camera_id}")
+
     # Start HMS listener and zone sync in background
     asyncio.create_task(listen_hms_ws(hms_ws))
     asyncio.create_task(sync_zones_loop())
+
+    # Auto-start inference
+    print("[bridge] Attempting to auto-start ML inference...")
+    await asyncio.sleep(2)
+    started = await auto_start_inference()
+    if started:
+        print("[bridge] ✓ Inference pipeline is active")
+    else:
+        print("[bridge] ⚠ Inference not started — will retry when detection WS connects")
 
     while True:
         try:
             print(f"[bridge] Connecting to detection service: {DETECTION_WS_URL}")
             async with websockets.connect(DETECTION_WS_URL, ping_interval=20, ping_timeout=10) as detect_ws:
                 print("[bridge] Connected to detection service")
+
+                if not started:
+                    started = await auto_start_inference()
 
                 async for message in detect_ws:
                     try:
@@ -195,19 +333,28 @@ async def relay_detections():
                         if not boxes:
                             continue
 
-                        # Check if surveillance is active for this camera
-                        if not surveillance_active.get(CAMERA_ID, True):
+                        active_cam = get_active_camera_id()
+
+                        if not surveillance_active.get(active_cam, True):
                             continue
 
-                        # Forward detection overlay to HMS dashboard
-                        overlay_payload = {
-                            "cameraId": CAMERA_ID,
-                            "boxes": boxes,
-                            "fps": fps,
-                            "width": frame_w,
-                            "height": frame_h
-                        }
-                        await send_hms_ws(hms_ws, "DETECTION_OVERLAY", overlay_payload)
+                        # Broadcast to ALL cameras (each camera gets all models)
+                        cameras_to_notify = [active_cam]
+                        if all_cameras:
+                            cameras_to_notify = [cam["id"] for cam in all_cameras]
+
+                        for cam_id in cameras_to_notify:
+                            if not surveillance_active.get(cam_id, True):
+                                continue
+
+                            overlay_payload = {
+                                "cameraId": cam_id,
+                                "boxes": boxes,
+                                "fps": fps,
+                                "width": frame_w,
+                                "height": frame_h
+                            }
+                            await send_hms_ws(hms_ws, "DETECTION_OVERLAY", overlay_payload)
 
                         # Check for alertable detections
                         for box in boxes:
@@ -216,28 +363,29 @@ async def relay_detections():
                             zone = box.get("zone")
                             event = box.get("event")
 
-                            # Only alert on significant detections
                             if conf < 0.45:
                                 continue
 
                             alert_type, risk_level = classify_detection(cls)
 
-                            # Zone intrusion events get elevated
+                            # Skip non-threatening action classes (still visible in overlay)
+                            if alert_type == "SUPPRESSED":
+                                continue
+
                             if event == "intrusion" and zone:
                                 risk_level = "RED"
                                 await send_hms_ws(hms_ws, "ZONE_INTRUSION", {
-                                    "cameraId": CAMERA_ID,
+                                    "cameraId": active_cam,
                                     "zone": zone,
                                     "cls": cls,
                                     "confidence": conf,
                                     "riskLevel": risk_level
                                 })
 
-                            # Rate-limited alert posting
-                            if should_alert(CAMERA_ID, cls):
+                            if should_alert(active_cam, cls):
                                 xyxy = box.get("xyxy", [0, 0, 0, 0])
                                 alert_data = {
-                                    "cameraId": CAMERA_ID,
+                                    "cameraId": active_cam,
                                     "type": alert_type,
                                     "class": cls,
                                     "confidence": conf,
@@ -252,16 +400,12 @@ async def relay_detections():
                                     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                                 }
 
-                                # Post alert to HMS API
                                 asyncio.create_task(post_alert(alert_data))
-
-                                # Broadcast ML_ALERT via WS
                                 await send_hms_ws(hms_ws, "ML_ALERT", alert_data)
 
-                                # Trigger buzzer for RED alerts
                                 if risk_level == "RED":
                                     await send_hms_ws(hms_ws, "BUZZER_CONTROL", {
-                                        "cameraId": CAMERA_ID,
+                                        "cameraId": active_cam,
                                         "action": "on",
                                         "tone": "high"
                                     })
@@ -294,5 +438,6 @@ if __name__ == "__main__":
     print(f"  HMS API:      {HMS_API_URL}")
     print(f"  HMS WS:       {HMS_WS_URL}")
     print(f"  Camera ID:    {CAMERA_ID}")
+    print(f"  Auto-start:   ENABLED (model1 + animal only)")
     print("=" * 50)
     asyncio.run(relay_detections())

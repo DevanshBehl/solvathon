@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { AnimatePresence } from 'framer-motion';
 import { useSFU } from '@/hooks/useSFU';
 import { useAlertStore } from '@/stores/alertStore';
+import { useCameraStore } from '@/stores/cameraStore';
 import CameraFeedCard from '@/components/CameraFeedCard';
 import CameraModal from '@/components/CameraModal';
 import { Button } from '@hostel-monitor/ui';
@@ -19,6 +20,42 @@ interface FloorData {
     isOnline: boolean;
     description: string | null;
     unresolvedAlertsCount: number;
+}
+
+/** Individual SVG camera node — reads live flag color from cameraStore */
+function CameraNode({ cam, hasAlert, onClick }: { cam: FloorData; hasAlert: boolean; onClick: () => void }) {
+    const flagColor = useCameraStore(state => state.flagColor.get(cam.id) ?? 'green');
+
+    // Map flagColor to Tailwind text classes
+    const colorClass = flagColor === 'red'
+      ? 'text-red-500'
+      : flagColor === 'yellow'
+        ? 'text-amber-400'
+        : 'text-online-green';
+
+    const shouldPulse = flagColor !== 'green' || hasAlert;
+
+    return (
+        <g
+            transform={`translate(${cam.posX}, ${cam.posY})`}
+            className="cursor-pointer pointer-events-auto group"
+            onClick={onClick}
+        >
+            {shouldPulse && (
+                <circle r="4" fill="currentColor" className={`${colorClass} animate-ping opacity-75`} />
+            )}
+            <circle r="1.5" fill="currentColor" className={colorClass} />
+            <circle r="2" fill="none" strokeWidth="0.3" stroke="currentColor" className={`${colorClass} opacity-50`} />
+            <text
+                y="-3"
+                textAnchor="middle"
+                className="text-[2px] font-mono fill-white opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ textShadow: '0 0 2px black' }}
+            >
+                {cam.label}
+            </text>
+        </g>
+    );
 }
 
 export default function FloorMapPage({ params }: { params: { hostelId: string, floorNumber: string } }) {
@@ -136,37 +173,17 @@ export default function FloorMapPage({ params }: { params: { hostelId: string, f
                         priority
                      />
                      
+                     
                      {/* SVG Overlay for camera nodes */}
                      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                         {cameras.map(cam => {
-                             const hasAlert = activeAlertCamIds.has(cam.id) || cam.unresolvedAlertsCount > 0;
-                             const isOnline = cam.isOnline; // To do: integrate with live status store
-                             
-                             const colorClass = hasAlert ? 'text-alert-red' : (isOnline ? 'text-online-green' : 'text-offline-gray');
-                             
-                             return (
-                                 <g 
-                                     key={cam.id} 
-                                     transform={`translate(${cam.posX}, ${cam.posY})`} 
-                                     className="cursor-pointer pointer-events-auto group"
-                                     onClick={() => setSelectedCam(cam.id)}
-                                 >
-                                     {hasAlert && (
-                                         <circle r="4" fill="currentColor" className={`${colorClass} animate-ping opacity-75`} />
-                                     )}
-                                     <circle r="1.5" fill="currentColor" className={colorClass} />
-                                     <circle r="2" fill="none" strokeWidth="0.3" stroke="currentColor" className={`${colorClass} opacity-50`} />
-                                     <text 
-                                        y="-3" 
-                                        textAnchor="middle" 
-                                        className="text-[2px] font-mono fill-white opacity-0 group-hover:opacity-100 transition-opacity"
-                                        style={{ textShadow: '0 0 2px black' }}
-                                     >
-                                        {cam.label}
-                                     </text>
-                                 </g>
-                             );
-                         })}
+                         {cameras.map(cam => (
+                             <CameraNode
+                                 key={cam.id}
+                                 cam={cam}
+                                 hasAlert={activeAlertCamIds.has(cam.id) || cam.unresolvedAlertsCount > 0}
+                                 onClick={() => setSelectedCam(cam.id)}
+                             />
+                         ))}
                      </svg>
                  </div>
              </div>
