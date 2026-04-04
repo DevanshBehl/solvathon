@@ -229,4 +229,4 @@ Client WebSocket logic negotiates the connection protocol linearly:
 3.  **`CREATE_RECV_TRANSPORT`**: Finalize DTLS tunnel handshakes with the Media Server.
 4.  **`CONSUME`**: Explicitly demand streams belonging to active `producerId` values.
 
-Events such as `PRODUCER_ADDED` or `PRODUCER_REMOVED` force tactical UI refreshes asynchronously.
+Events such as `PRODUCER_ADDED` or `PRODUCER_REMOVED` force tactical UI refreshes asynchronously
