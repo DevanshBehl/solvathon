@@ -38,7 +38,9 @@ export type WSMessageType =
   | 'ML_ALERT'
   | 'CAMERA_FLAG_UPDATE'
   | 'ML_MODEL_STATUS'
-  | 'PATTERN_INSIGHT';
+  | 'PATTERN_INSIGHT'
+  | 'START_INFERENCE'
+  | 'STOP_INFERENCE';
 
 /** Generic WebSocket message envelope */
 export interface WSMessage<T = unknown> {

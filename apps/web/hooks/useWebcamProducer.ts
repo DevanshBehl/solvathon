@@ -42,7 +42,7 @@ export function useWebcamProducer() {
     };
   }, [stopWebcam]);
 
-  const startWebcam = useCallback(async () => {
+  const startWebcam = useCallback(async (targetCameraId?: string) => {
     if (!connected) {
       setError('Signaling server not connected');
       return;
@@ -87,14 +87,15 @@ export function useWebcamProducer() {
         }
       });
 
-      // 5. Handle Transport Produce
+      // 5. Handle Transport Produce — include targetCameraId so server maps to correct physical camera
       transport.on('produce', async (parameters, callback, errback) => {
         try {
           const { kind, rtpParameters } = parameters;
           const { id } = await request('PRODUCE', {
             transportId: transport.id,
             kind,
-            rtpParameters
+            rtpParameters,
+            targetCameraId,
           }) as { id: string };
           
           callback({ id });

@@ -7,6 +7,7 @@ interface AlertState {
   addAlert: (alert: AlertPayload) => void;
   markAllRead: () => void;
   resolveAlert: (alertId: string) => void;
+  resolveAll: (hostelId?: string) => void;
 }
 
 export const useAlertStore = create<AlertState>((set) => ({
@@ -21,6 +22,12 @@ export const useAlertStore = create<AlertState>((set) => ({
   resolveAlert: (alertId) =>
     set((state) => ({
       alerts: state.alerts.filter((a) => a.alertId !== alertId),
+    })),
+  resolveAll: (hostelId?: string) =>
+    set((state) => ({
+      alerts: hostelId
+        ? state.alerts.filter((a) => a.hostelId !== hostelId)
+        : [],
     })),
 }));
 

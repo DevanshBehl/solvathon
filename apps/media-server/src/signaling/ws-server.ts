@@ -318,10 +318,11 @@ async function handleConnectSendTransport(client: ClientState, msg: WSMessage): 
 }
 
 async function handleProduce(client: ClientState, msg: WSMessage): Promise<void> {
-  const { transportId, kind, rtpParameters } = msg.payload as {
+  const { transportId, kind, rtpParameters, targetCameraId } = msg.payload as {
     transportId: string;
     kind: 'audio' | 'video';
     rtpParameters: any;
+    targetCameraId?: string;
   };
 
   const laptopCameraId = `laptop_${client.clientId}`;
@@ -350,60 +351,75 @@ async function handleProduce(client: ClientState, msg: WSMessage): Promise<void>
     })
   );
 
-  // Broadcast to all subscribed floors
-  for (const floorKey of client.subscribedFloors) {
-    const parts = floorKey.split(':');
-    if (parts.length === 3) {
-      const hostelId = parts[1];
-      const floorNumber = parseInt(parts[2], 10);
+  // If the user specified a target camera, map to that specific camera
+  if (targetCameraId) {
+    await ensureCameraQueueLoaded();
+    const targetCam = cameraAssignmentQueue.find(c => c.id === targetCameraId);
+
+    if (targetCam) {
+      laptopToCameraAssignment.set(client.clientId, {
+        ...targetCam,
+        cameraId: targetCam.id,
+      });
+
+      producerMap.set(targetCam.id, {
+        producer,
+        workerId: client.workerIndex || 0,
+        transportId,
+        transport: transportMap.get(transportId) as any,
+        consumerCount: 0,
+      });
+
+      console.info(`[ws] User-selected mapping: ${laptopCameraId} → ${targetCam.label} (${targetCam.id}) on Floor ${targetCam.floorNumber}`);
+
       broadcastToFloor(
-        hostelId,
-        floorNumber,
+        targetCam.hostelId,
+        targetCam.floorNumber,
         createMessage('PRODUCER_ADDED', {
           producerId: producer.id,
-          cameraId: laptopCameraId,
-          cameraLabel: 'Laptop Camera',
-          hostelId,
-          floorNumber,
+          cameraId: targetCam.id,
+          cameraLabel: targetCam.label,
+          hostelId: targetCam.hostelId,
+          floorNumber: targetCam.floorNumber,
+        })
+      );
+    } else {
+      console.warn(`[ws] Target camera ${targetCameraId} not found in queue, skipping assignment`);
+    }
+  } else {
+    // Fallback: auto-assign to next available camera slot (legacy behavior)
+    await ensureCameraQueueLoaded();
+    if (cameraAssignmentQueue.length > 0) {
+      const assignedCam = cameraAssignmentQueue[nextCameraSlot % cameraAssignmentQueue.length];
+      nextCameraSlot++;
+
+      laptopToCameraAssignment.set(client.clientId, {
+        ...assignedCam,
+        cameraId: assignedCam.id,
+      });
+
+      producerMap.set(assignedCam.id, {
+        producer,
+        workerId: client.workerIndex || 0,
+        transportId,
+        transport: transportMap.get(transportId) as any,
+        consumerCount: 0,
+      });
+
+      console.info(`[ws] Auto-mapped ${laptopCameraId} to ${assignedCam.label} (${assignedCam.id}) on Floor ${assignedCam.floorNumber}`);
+
+      broadcastToFloor(
+        assignedCam.hostelId,
+        assignedCam.floorNumber,
+        createMessage('PRODUCER_ADDED', {
+          producerId: producer.id,
+          cameraId: assignedCam.id,
+          cameraLabel: assignedCam.label,
+          hostelId: assignedCam.hostelId,
+          floorNumber: assignedCam.floorNumber,
         })
       );
     }
-  }
-
-  // Assign this laptop stream to a physical camera in the database dynamically
-  await ensureCameraQueueLoaded();
-  if (cameraAssignmentQueue.length > 0) {
-    const assignedCam = cameraAssignmentQueue[nextCameraSlot % cameraAssignmentQueue.length];
-    nextCameraSlot++;
-
-    laptopToCameraAssignment.set(client.clientId, {
-        ...assignedCam,
-        cameraId: assignedCam.id
-    });
-    
-    // Register the producer again under the physical camera's ID
-    producerMap.set(assignedCam.id, {
-      producer,
-      workerId: client.workerIndex || 0,
-      transportId,
-      transport: transportMap.get(transportId) as any,
-      consumerCount: 0,
-    });
-
-    console.info(`[ws] Mapped ${laptopCameraId} to physical camera ${assignedCam.label} (${assignedCam.id}) on Floor ${assignedCam.floorNumber}`);
-
-    // Broadcast the physical camera PRODUCER_ADDED to its floor globally using the exact same connection
-    broadcastToFloor(
-      assignedCam.hostelId,
-      assignedCam.floorNumber,
-      createMessage('PRODUCER_ADDED', {
-        producerId: producer.id,
-        cameraId: assignedCam.id,
-        cameraLabel: assignedCam.label,
-        hostelId: assignedCam.hostelId,
-        floorNumber: assignedCam.floorNumber
-      })
-    );
   }
 }
 
@@ -533,44 +549,76 @@ export function createSignalingServer(port: number): WebSocketServer {
             break;
 
           // ── Intrusion Detection Events ────────────────
-          case 'BUZZER_CONTROL':
+          case 'BUZZER_CONTROL': {
             // Broadcast alarm to all connected dashboard clients
-            console.info(`[ws] BUZZER_CONTROL: camera=${msg.payload.cameraId} action=${msg.payload.action}`);
+            const bp = msg.payload as any;
+            console.info(`[ws] BUZZER_CONTROL: camera=${bp.cameraId} action=${bp.action}`);
             broadcastToAll(createMessage('BUZZER_CONTROL', msg.payload));
             break;
+          }
 
-          case 'SURVEILLANCE_TOGGLE':
+          case 'SURVEILLANCE_TOGGLE': {
             // Broadcast surveillance toggle to all (including ML bridge)
-            console.info(`[ws] SURVEILLANCE_TOGGLE: camera=${msg.payload.cameraId} active=${msg.payload.active}`);
+            const sp = msg.payload as any;
+            console.info(`[ws] SURVEILLANCE_TOGGLE: camera=${sp.cameraId} active=${sp.active}`);
             broadcastToAll(createMessage('SURVEILLANCE_TOGGLE', msg.payload));
             break;
+          }
 
           case 'HEATMAP_UPDATE':
             // Broadcast heatmap update to all dashboard clients
             broadcastToAll(createMessage('HEATMAP_UPDATE', msg.payload));
             break;
 
-          case 'WALKTHROUGH_STATUS':
+          case 'WALKTHROUGH_STATUS': {
             // Log and broadcast walkthrough check status
-            console.info(`[ws] WALKTHROUGH_STATUS: camera=${msg.payload.cameraId} checked`);
+            const wp = msg.payload as any;
+            console.info(`[ws] WALKTHROUGH_STATUS: camera=${wp.cameraId} checked`);
             broadcastToAll(createMessage('WALKTHROUGH_STATUS', msg.payload));
             break;
+          }
 
           case 'DETECTION_OVERLAY':
             // Relay live detection bounding boxes to dashboard clients
             broadcastToAll(createMessage('DETECTION_OVERLAY', msg.payload));
             break;
 
-          case 'ZONE_INTRUSION':
+          case 'ZONE_INTRUSION': {
             // Relay zone intrusion alerts
-            console.info(`[ws] ZONE_INTRUSION: camera=${msg.payload.cameraId} zone=${msg.payload.zone}`);
+            const zp = msg.payload as any;
+            console.info(`[ws] ZONE_INTRUSION: camera=${zp.cameraId} zone=${zp.zone}`);
             broadcastToAll(createMessage('ZONE_INTRUSION', msg.payload));
             break;
+          }
 
-          case 'ML_ALERT':
+          case 'ML_ALERT': {
             // Relay ML detection alert to all dashboard clients
-            console.info(`[ws] ML_ALERT: camera=${msg.payload.cameraId} type=${msg.payload.type}`);
+            const mp = msg.payload as any;
+            console.info(`[ws] ML_ALERT: camera=${mp.cameraId} type=${mp.type}`);
             broadcastToAll(createMessage('ML_ALERT', msg.payload));
+            break;
+          }
+
+          case 'CAMERA_FLAG_UPDATE': {
+            // Relay camera flag state change (green/yellow/red node coloring)
+            const fp = msg.payload as any;
+            console.info(`[ws] CAMERA_FLAG_UPDATE: camera=${fp.cameraId} color=${fp.color} flag=${fp.flagState}`);
+            broadcastToAll(createMessage('CAMERA_FLAG_UPDATE', msg.payload));
+            break;
+          }
+
+          case 'START_INFERENCE': {
+            // Dashboard requests ML inference start — broadcast to bridge
+            const sip = msg.payload as any;
+            console.info(`[ws] START_INFERENCE: camera=${sip.cameraId || 'default'}`);
+            broadcastToAll(createMessage('START_INFERENCE', msg.payload));
+            break;
+          }
+
+          case 'STOP_INFERENCE':
+            // Dashboard requests ML inference stop — broadcast to bridge
+            console.info(`[ws] STOP_INFERENCE requested`);
+            broadcastToAll(createMessage('STOP_INFERENCE', msg.payload));
             break;
 
           default:

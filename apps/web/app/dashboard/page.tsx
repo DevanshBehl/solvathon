@@ -10,13 +10,47 @@ import { useCameraStore } from '@/stores/cameraStore';
 import { ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR } from '@hostel-monitor/types';
 import { useWebcamProducer } from '@/hooks/useWebcamProducer';
 import { useSFU } from '@/hooks/useSFU';
+import { useSignaling } from '@/hooks/useSignaling';
 import DetectionOverlay from '@/components/DetectionOverlay';
 
 export const dynamic = 'force-dynamic';
 
+interface CameraOption {
+  id: string;
+  label: string;
+  hostelId: string;
+  hostelName: string;
+  floorNumber: number;
+}
+
 function WebcamBroadcaster() {
   const { stream, isPublishing, error, startWebcam, stopWebcam } = useWebcamProducer();
+  const { sendMessage } = useSignaling();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Camera picker state
+  const [showPicker, setShowPicker] = useState(false);
+  const [cameras, setCameras] = useState<CameraOption[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+
+  // Fetch camera list when picker opens
+  useEffect(() => {
+    if (showPicker && cameras.length === 0) {
+      setLoading(true);
+      fetch('/api/cameras', {
+        headers: { 'x-api-key': 'ml-service-api-key-change-in-production' },
+      })
+        .then(res => res.json())
+        .then(data => {
+          const list = data.data || [];
+          setCameras(list);
+          if (list.length > 0) setSelectedCameraId(list[0].id);
+        })
+        .catch(err => console.error('[WebcamBroadcaster] Failed to fetch cameras:', err))
+        .finally(() => setLoading(false));
+    }
+  }, [showPicker, cameras.length]);
 
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -24,31 +58,103 @@ function WebcamBroadcaster() {
     }
   }, [stream]);
 
+  // Group cameras by hostel + floor for the picker
+  const grouped = cameras.reduce<Record<string, CameraOption[]>>((acc, cam) => {
+    const key = `${cam.hostelName} — Floor ${cam.floorNumber}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(cam);
+    return acc;
+  }, {});
+
+  const handleInitialize = async () => {
+    if (!selectedCameraId) return;
+
+    // Start webcam with the selected camera as target
+    await startWebcam(selectedCameraId);
+
+    // Tell bridge to start ML inference on this camera
+    sendMessage('START_INFERENCE', { cameraId: selectedCameraId });
+
+    setShowPicker(false);
+  };
+
+  const handleStop = () => {
+    stopWebcam();
+    sendMessage('STOP_INFERENCE', {});
+  };
+
   return (
     <div className="border border-white/20 p-5 bg-black">
       <span className="text-text-secondary text-[9px] uppercase tracking-[0.3em] font-bold block mb-4">Broadcast Node</span>
       {error && <div className="text-accent-red text-[10px] mb-2">{error}</div>}
-      
+
       {isPublishing ? (
         <div className="flex flex-col gap-3">
           <div className="relative aspect-video bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-             <video 
-               ref={videoRef} 
-               autoPlay 
-               playsInline 
-               muted 
-               className="w-full h-full object-cover" 
+             <video
+               ref={videoRef}
+               autoPlay
+               playsInline
+               muted
+               className="w-full h-full object-cover"
              />
              <div className="absolute top-2 right-2 flex items-center gap-2 bg-black/80 px-2 py-1 border border-accent-red/50 text-[9px] text-accent-red font-bold tracking-widest">
                <div className="w-1.5 h-1.5 rounded-none bg-accent-red" /> REC
              </div>
           </div>
-          <Button variant="danger" size="sm" onClick={stopWebcam} className="w-full">
+          {/* Show which camera is assigned */}
+          {selectedCameraId && (
+            <div className="text-[9px] text-accent-cyan font-mono uppercase tracking-wider">
+              ▸ Mapped to: {cameras.find(c => c.id === selectedCameraId)?.label || selectedCameraId.slice(0, 8)}
+            </div>
+          )}
+          <Button variant="danger" size="sm" onClick={handleStop} className="w-full">
             Stop Broadcasting
           </Button>
         </div>
+      ) : showPicker ? (
+        <div className="flex flex-col gap-3">
+          <span className="text-[10px] text-white font-bold uppercase tracking-widest">Select Camera Slot</span>
+
+          {loading ? (
+            <div className="text-[10px] text-text-secondary py-4 text-center">Loading cameras...</div>
+          ) : cameras.length === 0 ? (
+            <div className="text-[10px] text-text-secondary py-4 text-center">No cameras found in database</div>
+          ) : (
+            <select
+              value={selectedCameraId}
+              onChange={(e) => setSelectedCameraId(e.target.value)}
+              className="w-full bg-black border border-white/20 text-white text-[11px] font-mono px-3 py-2 focus:border-accent-violet focus:outline-none"
+            >
+              {Object.entries(grouped).map(([group, cams]) => (
+                <optgroup key={group} label={group}>
+                  {cams.map(cam => (
+                    <option key={cam.id} value={cam.id}>
+                      {cam.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
+
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowPicker(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleInitialize}
+              className="flex-1"
+              disabled={!selectedCameraId || loading}
+            >
+              Start
+            </Button>
+          </div>
+        </div>
       ) : (
-        <Button variant="primary" size="sm" onClick={startWebcam} className="w-full">
+        <Button variant="primary" size="sm" onClick={() => setShowPicker(true)} className="w-full">
           Initialize Webcam
         </Button>
       )}
@@ -282,8 +388,9 @@ function GlobalViewer() {
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [hostels, setHostels] = useState<any[]>([]);
-  const { alerts, unreadCount, markAllRead, resolveAlert } = useAlertStore();
+  const { alerts, unreadCount, markAllRead, resolveAlert, resolveAll } = useAlertStore();
   const [isResolving, setIsResolving] = useState<string | null>(null);
+  const [isResolvingAll, setIsResolvingAll] = useState(false);
 
   useEffect(() => {
     fetch('/api/hostels')
@@ -302,6 +409,19 @@ export default function DashboardPage() {
       }
     } finally {
       setIsResolving(null);
+    }
+  };
+
+  const handleResolveAll = async () => {
+    if (alerts.length === 0) return;
+    setIsResolvingAll(true);
+    try {
+      const res = await fetch('/api/alerts/resolve-all', { method: 'PATCH' });
+      if (res.ok) {
+        resolveAll();
+      }
+    } finally {
+      setIsResolvingAll(false);
     }
   };
 
@@ -369,9 +489,22 @@ export default function DashboardPage() {
             <h2 className="text-[14px] font-bold tracking-widest uppercase text-white flex items-center gap-3">
               <span className="w-2 h-2 bg-accent-cyan animate-pulse" /> Live Incident Feed
             </h2>
-            <Badge variant="default" className="text-[10px]">
-              {alerts.length} Pending Actions
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="text-[10px]">
+                {alerts.length} Pending Actions
+              </Badge>
+              {alerts.length > 0 && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleResolveAll}
+                  loading={isResolvingAll}
+                  className="text-[9px]"
+                >
+                  Resolve All
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
