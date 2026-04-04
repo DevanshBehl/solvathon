@@ -10,6 +10,23 @@ interface DetectionOverlayProps {
 
 // Color scheme for different detection classes
 const CLASS_COLORS: Record<string, string> = {
+  // Model 1 — Action/Pose (violence = red, normal = dim)
+  fighting: '#F87171',
+  fight: '#F87171',
+  violence: '#F87171',
+  assault: '#F87171',
+  kicking: '#F87171',
+  punching: '#F87171',
+  stabbing: '#F87171',
+  falling: '#FBBF24',
+  loitering: '#FBBF24',
+  crowd_gathering: '#FBBF24',
+  normal_walk: '#6B7280',
+  walking: '#6B7280',
+  standing: '#6B7280',
+  sitting: '#6B7280',
+  running: '#6B7280',
+  // Animal model
   person: '#4ADE80',
   dog: '#FBBF24',
   cat: '#FBBF24',
@@ -17,14 +34,12 @@ const CLASS_COLORS: Record<string, string> = {
   cow: '#FBBF24',
   horse: '#FBBF24',
   monkey: '#FBBF24',
+  // Weapons (if ever enabled)
   knife: '#F87171',
   scissors: '#F87171',
   'baseball bat': '#F87171',
   fire: '#F87171',
   smoke: '#F87171',
-  bottle: '#60A5FA',
-  cup: '#60A5FA',
-  pizza: '#60A5FA',
 };
 
 function getColor(cls: string): string {

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSession, signOut } from 'next-auth/react';
 import { Card, Badge, StatusDot, Button } from '@hostel-monitor/ui';
 import { useAlertStore } from '@/stores/alertStore';
+import { useCameraStore } from '@/stores/cameraStore';
 import { ALERT_TYPE_EMOJI, ALERT_TYPE_LABEL, SEVERITY_COLOR } from '@hostel-monitor/types';
 import { useWebcamProducer } from '@/hooks/useWebcamProducer';
 import { useSFU } from '@/hooks/useSFU';
@@ -73,8 +74,16 @@ function VideoTile({ track, cameraId, index }: { track: MediaStreamTrack | null;
     ? `Node ${cameraId.split('_').pop()?.slice(0, 6).toUpperCase() || index + 1}` 
     : cameraId.slice(0, 8).toUpperCase();
 
+  const flagColor = useCameraStore(state => state.flagColor.get(cameraId) ?? 'green');
+
+  const borderClass = flagColor === 'red'
+    ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+    : flagColor === 'yellow'
+      ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+      : 'border-online-green/40';
+
   return (
-    <div className="relative group bg-[#0a0a0a] border border-white/10 hover:border-accent-violet/60 transition-all duration-300 flex flex-col overflow-hidden">
+    <div className={`relative group bg-[#0a0a0a] border ${borderClass} hover:border-accent-violet/60 transition-all duration-300 flex flex-col overflow-hidden`}>
       
       {/* Video Container */}
       <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
