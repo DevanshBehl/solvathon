@@ -11,17 +11,32 @@ interface DetectionOverlayProps {
 // Color scheme for different detection classes
 const CLASS_COLORS: Record<string, string> = {
   person: '#4ADE80',
+  // Fighting / violence — bright red
+  fighting: '#EF4444',
+  fight: '#EF4444',
+  violence: '#EF4444',
+  assault: '#EF4444',
+  // Walking / normal activity — teal (distinct from fighting red)
+  walking: '#2DD4BF',
+  normal_walk: '#2DD4BF',
+  standing: '#2DD4BF',
+  sitting: '#2DD4BF',
+  running: '#2DD4BF',
+  jogging: '#2DD4BF',
+  // Animals — amber
   dog: '#FBBF24',
   cat: '#FBBF24',
   bird: '#FBBF24',
   cow: '#FBBF24',
   horse: '#FBBF24',
   monkey: '#FBBF24',
+  // Weapons / fire — coral red
   knife: '#F87171',
   scissors: '#F87171',
   'baseball bat': '#F87171',
   fire: '#F87171',
   smoke: '#F87171',
+  // Objects — blue
   bottle: '#60A5FA',
   cup: '#60A5FA',
   pizza: '#60A5FA',

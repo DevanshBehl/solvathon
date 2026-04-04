@@ -87,7 +87,16 @@ export default function AlertProvider({ children }: { children: React.ReactNode 
     });
 
     // ML_ALERT — ML detection alert (fires for significant detections)
+    // Suppress toasts for walking / normal activity classes (non-alertable)
+    const NON_ALERTABLE_CLASSES = new Set([
+      'walking', 'normal_walk', 'standing', 'sitting', 'running',
+      'jogging', 'standing_up', 'sitting_down', 'person', 'normal',
+    ]);
+
     const unsubscribeMLAlert = subscribe('ML_ALERT', (payload: MLAlertPayload) => {
+      // Don't show toast for non-violent / normal activity
+      if (NON_ALERTABLE_CLASSES.has(payload.class?.toLowerCase())) return;
+
       const riskEmoji = payload.riskLevel === 'RED' ? '🔴' : '🟡';
       toast(`${riskEmoji} ${payload.class} detected`, {
         description: `Camera ${payload.cameraId} — ${(payload.confidence * 100).toFixed(0)}% confidence${payload.zone ? ` in ${payload.zone}` : ''}`,
