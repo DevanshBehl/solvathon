@@ -4,7 +4,7 @@ ML Bridge Service — Connects intrusion-suite detection to HMS.
 Consumes detection data from the intrusion-suite detection service WebSocket,
 and relays alerts/overlays to HMS via its API and WebSocket.
 
-Auto-starts ML inference with Model 1 (Action) + Animal model on startup.
+Auto-starts ML inference with Model 1 (Action) and Animal model only.
 
 Usage:
     Activate env: source venv/bin/activate
@@ -69,11 +69,23 @@ def get_active_camera_id() -> str:
     return CAMERA_ID
 
 
+# Classes from Model 1 that should NOT trigger alerts (non-violent)
+# These still show bounding boxes but don't fire toasts/alerts
+MODEL1_SUPPRESSED_CLASSES = {
+    "normal_walk", "standing", "walking", "sitting", "normal",
+    "running", "jogging", "standing_up", "sitting_down",
+    "person",  # generic person from model1 is not alertable
+}
+
+# Only these models will be enabled
+ENABLED_MODEL_NAMES = {"model1.pt", "monkey_cat_dog_v1.pt"}
+
+
 async def auto_start_inference():
-    """Auto-start ML inference with ALL models enabled.
+    """Auto-start ML inference with Model 1 (Action) + Animal model only.
     
     1. Fetches the model list from /detector/models
-    2. Calls POST /detector/start with all models enabled + webcam source
+    2. Calls POST /detector/start with model1.pt + monkey_cat_dog_v1.pt
     """
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -96,15 +108,14 @@ async def auto_start_inference():
                 print("[bridge] No models registered in inference service")
                 return False
 
-            # Only enable Model 1 (action) and Animal model
-            ENABLED_MODELS = {"model1.pt", "monkey_cat_dog_v1.pt"}
+            # Enable ONLY model1.pt (action) and monkey_cat_dog_v1.pt (animal)
             model_configs = []
             for model in models:
-                if model["name"] not in ENABLED_MODELS:
-                    print(f"  ⊘ Skipping {model['name']} (not in active set)")
+                if model["name"] not in ENABLED_MODEL_NAMES:
+                    print(f"  ⊘ Skipping {model['name']} (not in enabled set)")
                     continue
 
-                # Enable every class in each selected model
+                # Enable every class in the selected models
                 enabled_classes = {}
                 for label in model.get("labels", []):
                     enabled_classes[label] = True
@@ -116,6 +127,10 @@ async def auto_start_inference():
                     "iou": 0.45,
                     "enabled_classes": enabled_classes,
                 })
+
+            if not model_configs:
+                print("[bridge] No enabled models found in registry")
+                return False
 
             print(f"[bridge] Starting inference with {len(model_configs)} models:")
             for mc in model_configs:
@@ -200,21 +215,13 @@ def should_alert(camera_id: str, cls: str) -> bool:
     return True
 
 
-# Non-threatening action classes from Model 1 that should NOT trigger alerts
-SUPPRESSED_ACTION_CLASSES = {
-    "normal_walk", "walking", "standing", "sitting", "normal",
-    "running", "jogging", "bending", "hand_shaking", "hugging",
-    "reading", "eating", "drinking", "talking", "texting",
-    "using_phone", "waving", "pointing",
-}
-
-
 def classify_detection(cls: str) -> tuple[str, str]:
     """Map detected class to alert type and risk level."""
     animal_classes = {"dog", "cat", "bird", "horse", "cow", "elephant", "bear", "zebra", "giraffe", "monkey"}
-    fight_classes = {"fighting", "fight", "violence", "assault", "kicking", "punching", "stabbing"}
+    fight_classes = {"fighting", "fight", "violence", "assault"}
     weapon_classes = {"knife", "scissors", "baseball bat"}
     fire_classes = {"fire", "smoke"}
+    food_classes = {"pizza", "bottle", "cup", "bowl", "banana", "apple", "sandwich", "hot dog", "donut", "cake"}
 
     cls_lower = cls.lower()
     if cls_lower in fight_classes:
@@ -225,8 +232,8 @@ def classify_detection(cls: str) -> tuple[str, str]:
         return "WEAPON", "RED"
     elif cls_lower in fire_classes:
         return "FIRE_DETECTED", "RED"
-    elif cls_lower in SUPPRESSED_ACTION_CLASSES:
-        return "SUPPRESSED", "NONE"  # will be filtered out
+    elif cls_lower in food_classes:
+        return "FOOD_INTRUSION", "YELLOW"
     elif cls_lower == "person":
         return "UNAUTHORIZED_PERSON", "YELLOW"
     else:
@@ -366,11 +373,12 @@ async def relay_detections():
                             if conf < 0.45:
                                 continue
 
-                            alert_type, risk_level = classify_detection(cls)
-
-                            # Skip non-threatening action classes (still visible in overlay)
-                            if alert_type == "SUPPRESSED":
+                            # Suppress non-violent Model 1 classes from alerts
+                            # (they still show as bounding boxes in the overlay)
+                            if cls.lower() in MODEL1_SUPPRESSED_CLASSES:
                                 continue
+
+                            alert_type, risk_level = classify_detection(cls)
 
                             if event == "intrusion" and zone:
                                 risk_level = "RED"

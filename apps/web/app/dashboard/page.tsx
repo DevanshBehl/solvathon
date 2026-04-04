@@ -59,6 +59,13 @@ function WebcamBroadcaster() {
 function VideoTile({ track, cameraId, index }: { track: MediaStreamTrack | null; cameraId: string; index: number }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const flagColor = useCameraStore(state => state.flagColor.get(cameraId) ?? 'green');
+
+  const borderClass = flagColor === 'red'
+    ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+    : flagColor === 'yellow'
+      ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
+      : 'border-emerald-500/40';
   
   useEffect(() => {
     if (videoRef.current && track) {
@@ -73,14 +80,6 @@ function VideoTile({ track, cameraId, index }: { track: MediaStreamTrack | null;
   const label = cameraId.startsWith('laptop_') 
     ? `Node ${cameraId.split('_').pop()?.slice(0, 6).toUpperCase() || index + 1}` 
     : cameraId.slice(0, 8).toUpperCase();
-
-  const flagColor = useCameraStore(state => state.flagColor.get(cameraId) ?? 'green');
-
-  const borderClass = flagColor === 'red'
-    ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]'
-    : flagColor === 'yellow'
-      ? 'border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.3)]'
-      : 'border-online-green/40';
 
   return (
     <div className={`relative group bg-[#0a0a0a] border ${borderClass} hover:border-accent-violet/60 transition-all duration-300 flex flex-col overflow-hidden`}>
@@ -119,6 +118,15 @@ function VideoTile({ track, cameraId, index }: { track: MediaStreamTrack | null;
           <span className={`text-[8px] font-bold tracking-[0.2em] uppercase ${isPlaying ? 'text-accent-red' : 'text-white/30'}`}>
             {isPlaying ? 'LIVE' : 'IDLE'}
           </span>
+          {/* Flag status indicator */}
+          {flagColor !== 'green' && (
+            <span className={`ml-1 px-1 text-[7px] font-bold uppercase tracking-wider ${
+              flagColor === 'red' ? 'bg-red-500/30 text-red-400 border border-red-500/50' 
+              : 'bg-amber-400/30 text-amber-300 border border-amber-400/50'
+            }`}>
+              {flagColor === 'red' ? '⚠ THREAT' : '⚠ ALERT'}
+            </span>
+          )}
         </div>
 
         {/* Signal quality indicator */}

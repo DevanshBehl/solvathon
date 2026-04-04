@@ -22,40 +22,42 @@ interface FloorData {
     unresolvedAlertsCount: number;
 }
 
-/** Individual SVG camera node — reads live flag color from cameraStore */
+// Camera node on the tactical map — color driven by ML flag engine
 function CameraNode({ cam, hasAlert, onClick }: { cam: FloorData; hasAlert: boolean; onClick: () => void }) {
-    const flagColor = useCameraStore(state => state.flagColor.get(cam.id) ?? 'green');
-
-    // Map flagColor to Tailwind text classes
-    const colorClass = flagColor === 'red'
-      ? 'text-red-500'
-      : flagColor === 'yellow'
-        ? 'text-amber-400'
+  const flagColor = useCameraStore(state => state.flagColor.get(cam.id) ?? 'green');
+  
+  // Map flag color to CSS class
+  const colorClass = flagColor === 'red' 
+    ? 'text-alert-red' 
+    : flagColor === 'yellow' 
+      ? 'text-warning-amber' 
+      : hasAlert 
+        ? 'text-alert-red' 
         : 'text-online-green';
 
-    const shouldPulse = flagColor !== 'green' || hasAlert;
+  const isAlerted = flagColor === 'red' || flagColor === 'yellow' || hasAlert;
 
-    return (
-        <g
-            transform={`translate(${cam.posX}, ${cam.posY})`}
-            className="cursor-pointer pointer-events-auto group"
-            onClick={onClick}
-        >
-            {shouldPulse && (
-                <circle r="4" fill="currentColor" className={`${colorClass} animate-ping opacity-75`} />
-            )}
-            <circle r="1.5" fill="currentColor" className={colorClass} />
-            <circle r="2" fill="none" strokeWidth="0.3" stroke="currentColor" className={`${colorClass} opacity-50`} />
-            <text
-                y="-3"
-                textAnchor="middle"
-                className="text-[2px] font-mono fill-white opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ textShadow: '0 0 2px black' }}
-            >
-                {cam.label}
-            </text>
-        </g>
-    );
+  return (
+    <g 
+      transform={`translate(${cam.posX}, ${cam.posY})`} 
+      className="cursor-pointer pointer-events-auto group"
+      onClick={onClick}
+    >
+      {isAlerted && (
+        <circle r="4" fill="currentColor" className={`${colorClass} animate-ping opacity-75`} />
+      )}
+      <circle r="1.5" fill="currentColor" className={colorClass} />
+      <circle r="2" fill="none" strokeWidth="0.3" stroke="currentColor" className={`${colorClass} opacity-50`} />
+      <text 
+        y="-3" 
+        textAnchor="middle" 
+        className="text-[2px] font-mono fill-white opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ textShadow: '0 0 2px black' }}
+      >
+        {cam.label}
+      </text>
+    </g>
+  );
 }
 
 export default function FloorMapPage({ params }: { params: { hostelId: string, floorNumber: string } }) {
@@ -173,17 +175,18 @@ export default function FloorMapPage({ params }: { params: { hostelId: string, f
                         priority
                      />
                      
-                     
                      {/* SVG Overlay for camera nodes */}
                      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                         {cameras.map(cam => (
-                             <CameraNode
-                                 key={cam.id}
-                                 cam={cam}
-                                 hasAlert={activeAlertCamIds.has(cam.id) || cam.unresolvedAlertsCount > 0}
-                                 onClick={() => setSelectedCam(cam.id)}
-                             />
-                         ))}
+                         {cameras.map(cam => {
+                             return (
+                                 <CameraNode 
+                                     key={cam.id} 
+                                     cam={cam} 
+                                     hasAlert={activeAlertCamIds.has(cam.id) || cam.unresolvedAlertsCount > 0}
+                                     onClick={() => setSelectedCam(cam.id)} 
+                                 />
+                             );
+                         })}
                      </svg>
                  </div>
              </div>
