@@ -50,6 +50,41 @@ interface ClientState {
 
 const clientMap = new Map<string, ClientState>();
 
+// ── Camera Assignment State ─────────────────
+interface CameraAssignment {
+  id: string;
+  hostelId: string;
+  floorNumber: number;
+  label: string;
+}
+
+let cameraAssignmentQueue: CameraAssignment[] = [];
+let nextCameraSlot = 0;
+let isQueueLoaded = false;
+const laptopToCameraAssignment = new Map<string, CameraAssignment & { cameraId: string }>();
+
+async function ensureCameraQueueLoaded() {
+  if (isQueueLoaded) return;
+  await db.connectDB();
+  const hostels = await db.Hostel.find({}).sort({ _id: 1 });
+  for (const hostel of hostels) {
+    const floors = await db.Floor.find({ hostelId: hostel._id }).sort({ number: 1 });
+    for (const floor of floors) {
+      const cameras = await db.Camera.find({ floorId: floor._id }).sort({ label: 1 });
+      for (const camera of cameras) {
+        cameraAssignmentQueue.push({
+          id: camera.id,
+          hostelId: (hostel._id as any).toString(),
+          floorNumber: floor.number,
+          label: camera.label
+        });
+      }
+    }
+  }
+  console.info(`[ws] Loaded ${cameraAssignmentQueue.length} system cameras for stream assignment`);
+  isQueueLoaded = true;
+}
+
 // ── Helpers ─────────────────────────────────
 
 function createMessage<T>(type: WSMessageType, payload: T, id?: string): string {
@@ -289,10 +324,10 @@ async function handleProduce(client: ClientState, msg: WSMessage): Promise<void>
     rtpParameters: any;
   };
 
-  const cameraId = `laptop_${client.clientId}`;
+  const laptopCameraId = `laptop_${client.clientId}`;
   const producer = await createProducer(transportId, kind, rtpParameters);
 
-  producerMap.set(cameraId, {
+  producerMap.set(laptopCameraId, {
     producer,
     workerId: client.workerIndex || 0,
     transportId,
@@ -308,7 +343,7 @@ async function handleProduce(client: ClientState, msg: WSMessage): Promise<void>
     0,
     createMessage('PRODUCER_ADDED', {
       producerId: producer.id,
-      cameraId,
+      cameraId: laptopCameraId,
       cameraLabel: 'Laptop Camera',
       hostelId: 'global',
       floorNumber: 0,
@@ -326,13 +361,49 @@ async function handleProduce(client: ClientState, msg: WSMessage): Promise<void>
         floorNumber,
         createMessage('PRODUCER_ADDED', {
           producerId: producer.id,
-          cameraId,
+          cameraId: laptopCameraId,
           cameraLabel: 'Laptop Camera',
           hostelId,
           floorNumber,
         })
       );
     }
+  }
+
+  // Assign this laptop stream to a physical camera in the database dynamically
+  await ensureCameraQueueLoaded();
+  if (cameraAssignmentQueue.length > 0) {
+    const assignedCam = cameraAssignmentQueue[nextCameraSlot % cameraAssignmentQueue.length];
+    nextCameraSlot++;
+
+    laptopToCameraAssignment.set(client.clientId, {
+        ...assignedCam,
+        cameraId: assignedCam.id
+    });
+    
+    // Register the producer again under the physical camera's ID
+    producerMap.set(assignedCam.id, {
+      producer,
+      workerId: client.workerIndex || 0,
+      transportId,
+      transport: transportMap.get(transportId) as any,
+      consumerCount: 0,
+    });
+
+    console.info(`[ws] Mapped ${laptopCameraId} to physical camera ${assignedCam.label} (${assignedCam.id}) on Floor ${assignedCam.floorNumber}`);
+
+    // Broadcast the physical camera PRODUCER_ADDED to its floor globally using the exact same connection
+    broadcastToFloor(
+      assignedCam.hostelId,
+      assignedCam.floorNumber,
+      createMessage('PRODUCER_ADDED', {
+        producerId: producer.id,
+        cameraId: assignedCam.id,
+        cameraLabel: assignedCam.label,
+        hostelId: assignedCam.hostelId,
+        floorNumber: assignedCam.floorNumber
+      })
+    );
   }
 }
 
@@ -350,17 +421,38 @@ function handleDisconnect(client: ClientState): void {
   if (client.sendTransportId) {
     closeTransport(client.sendTransportId);
 
-    const cameraId = `laptop_${client.clientId}`;
-    if (producerMap.has(cameraId)) {
-      const entry = producerMap.get(cameraId);
+    const laptopCameraId = `laptop_${client.clientId}`;
+    if (producerMap.has(laptopCameraId)) {
+      const entry = producerMap.get(laptopCameraId);
       if (entry) {
         try {
           entry.producer.close();
         } catch (e) {
-          console.error(`[ws] Error closing producer for laptop ${cameraId}:`, e);
+          console.error(`[ws] Error closing producer for laptop ${laptopCameraId}:`, e);
         }
       }
-      producerMap.delete(cameraId);
+      producerMap.delete(laptopCameraId);
+    }
+
+    // Cleanup mapped physical camera
+    const assignment = laptopToCameraAssignment.get(client.clientId);
+    if (assignment) {
+        if (producerMap.has(assignment.cameraId)) {
+           producerMap.delete(assignment.cameraId);
+        }
+        laptopToCameraAssignment.delete(client.clientId);
+        
+        console.info(`[ws] Cleaned up physical camera mapping for ${laptopCameraId} -> ${assignment.cameraId}`);
+        
+        // Notify floor clients that the producer is removed
+        broadcastToFloor(
+            assignment.hostelId,
+            assignment.floorNumber,
+            createMessage('PRODUCER_REMOVED', {
+                producerId: '',
+                cameraId: assignment.cameraId
+            })
+        );
     }
   }
 
